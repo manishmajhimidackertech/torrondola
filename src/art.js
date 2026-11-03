@@ -120,6 +120,53 @@ export function pigeon(frame, face = 1) {
   return c;
 }
 
+// --- the bulldozer that clears fallen floors ------------------------------------
+
+// Faces right; the blade is on the right. phase (0..2) walks the track treads.
+function dozerFrame(phase) {
+  const [c, g] = makeCanvas(36, 21);
+  const R = (col, x, y, w, h) => {
+    g.fillStyle = col;
+    g.fillRect(x, y, w, h);
+  };
+  R('#3d3a4a', 2, 15, 26, 5); // tracks
+  R('#3d3a4a', 1, 16, 28, 3);
+  for (let x = 3 + phase; x < 27; x += 3) {
+    R('#6c6488', x, 15, 1, 1);
+    R('#6c6488', x, 19, 1, 1);
+  }
+  for (const wx of [5, 11, 17, 23]) {
+    R('#9a93b3', wx, 16, 3, 3);
+    R('#3d3a4a', wx + 1, 17, 1, 1);
+  }
+  R(PAL.gold, 3, 9, 24, 6); // body
+  R('#c07f2a', 3, 13, 24, 2);
+  R('#ffd88a', 3, 9, 24, 1);
+  R(INK, 4, 11, 22, 1);
+  R(PAL.gold, 6, 1, 13, 8); // cab
+  R('#ffd88a', 6, 1, 13, 1);
+  R('#9fd4ff', 8, 3, 9, 5);
+  R('#d4ecff', 15, 3, 2, 2);
+  R(PAL.orange, 10, 3, 4, 2); // driver's hard hat
+  R('#f2c29b', 11, 5, 2, 2);
+  R('#3d3a4a', 21, 3, 2, 6); // exhaust
+  R('#3d3a4a', 27, 11, 4, 2); // arm
+  R('#9a93b3', 30, 6, 4, 14); // blade
+  R('#c9c3d6', 30, 6, 1, 14);
+  R('#6c6488', 33, 6, 1, 14);
+  return withOutline(c);
+}
+
+const dozerFrames = [0, 1, 2].map(dozerFrame);
+const dozerFramesLeft = dozerFrames.map(mirrored);
+
+export const DOZER_REACH = 16; // centre to blade front
+export const DOZER_BACK = 19; // centre to rear
+
+export function dozer(frame, dir) {
+  return (dir < 0 ? dozerFramesLeft : dozerFrames)[frame % 3];
+}
+
 // --- sky -----------------------------------------------------------------------
 
 // Hot-air balloon in the colors of the tricolore.

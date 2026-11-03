@@ -47,6 +47,7 @@ You start with 3 lives. The game ends when you run out of lives or when the towe
 - **Golden floors.** About one floor in fourteen arrives gilded. Landing one is worth ×3 points.
 - **Your record.** A pennant marks the height of your best tower. Climb past it for *Nuovo record!* and confetti.
 - **Wind.** From floor 25, gusts are announced in the HUD, then push falling blocks and the tower sideways.
+- **Fallen floors.** Missed blocks and toppled floors crash into the street and lie there as rubble until a little bulldozer drives in and shoves them off the screen.
 - **The sky.** It changes from dusk to night to space. On the way up you pass clouds, a tricolore hot-air balloon, the moon and satellites, and up high, the occasional UFO. Pigeons land on the roof and flee from the next floor.
 - **The palazzo.** Floors come with shutters (*persiane*), flower boxes, balconies with geraniums, arched windows and laundry lines. The building changes colour every 10 floors.
 - **The results card.** When the run ends you get an airmail-style card with a picture of your tower, your score, floors, best combo and blessings, signed by Nonna. **Share** it (phones) or **Save image** (desktop), **Play again**, or go back to the **Menu**.
@@ -61,6 +62,7 @@ You start with 3 lives. The game ends when you run out of lives or when the towe
 | *Attenzione! / Occhio!* | Careful! / Watch out! |
 | *Mamma mia!* | Good grief! |
 | *Che vento!* | What a wind! |
+| *Pulizia! / Grazie, Mario!* | Clean-up! / Thanks, Mario! |
 | *Via, piccione!* | Shoo, pigeon! |
 | *Crollo!* | Collapse! |
 | *Riprova! / Coraggio!* | Try again! / Chin up! |

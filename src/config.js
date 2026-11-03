@@ -56,6 +56,7 @@ export const CFG = {
   windTower: 0.3, // share of the push felt by the top of the tower
 
   pigeonChance: 0.22, // chance a pigeon lands on the roof after a landing
+  dozerSpeed: 80, // px/s, the bulldozer clearing fallen floors
 };
 
 // Screen y of the tower top while playing; the camera follows to keep it here.

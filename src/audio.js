@@ -182,6 +182,18 @@ export class Sound {
     this.tone(196, 0.1, { vol: 0.15, delay: 0.12 });
   }
 
+  // A fallen floor hitting the street.
+  thud() {
+    this.noise(0.2, { freq: 320, vol: 0.5 });
+    this.tone(85, 0.16, { wave: 'triangle', to: 40, vol: 0.4 });
+  }
+
+  // One putt of the bulldozer's engine.
+  chug() {
+    this.noise(0.06, { freq: 180, vol: 0.22 });
+    this.tone(58, 0.06, { wave: 'square', vol: 0.04 });
+  }
+
   gust() {
     this.noise(0.9, { type: 'bandpass', freq: 900, vol: 0.25 });
   }

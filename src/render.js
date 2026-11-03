@@ -5,7 +5,7 @@ import { drawText, textWidth } from './font.js';
 import {
   INK, PAL, hookSprite, heartFull, heartEmpty, speakerOn, speakerOff, pauseIcon, makeSkyline, makeCloud, rng,
 } from './sprites.js';
-import { balloon, cardIcon, moon, nonnaFace, pigeon, satellite, ufo } from './art.js';
+import { balloon, cardIcon, dozer, moon, nonnaFace, pigeon, satellite, ufo } from './art.js';
 import { CARDS, RARITY } from './cards.js';
 import { BAYER, box, clamp, line, panel } from './draw.js';
 import { CARD_W, PHOTO_MAX, PHOTO_MIN, cardHeight } from './postcard.js';
@@ -144,6 +144,7 @@ export class Renderer {
     this.drawCity(game, oy);
     this.drawBalloon(game, alt);
     this.drawClouds(game, alt);
+    this.drawStreet(game, ox, oy);
     this.drawRecord(game, oy);
     this.drawTower(game, ox, oy);
     this.drawPigeons(game, ox, oy);
@@ -317,6 +318,27 @@ export class Renderer {
   }
 
   // --- tower, crane and friends ---------------------------------------------
+
+  // Fallen floors lying in the street and the bulldozer clearing them. They're
+  // drawn behind the tower, so the dozer drives past behind the ground floor.
+  drawStreet(game, ox, oy) {
+    const { g, W } = this;
+    if (oy > this.H + BW) return;
+    for (const r of game.rubble) {
+      const x = Math.round(r.x) + ox;
+      if (x < -BW || x > W + BW) continue;
+      g.save();
+      g.translate(x, Math.round(r.y) + oy);
+      g.rotate(r.rot);
+      g.drawImage(r.sprite, -BW / 2, -BH / 2);
+      g.restore();
+    }
+    const d = game.dozer;
+    if (!d) return;
+    const spr = dozer(Math.floor(d.t * 10), d.dir);
+    const bob = Math.floor(d.t * 10) % 2;
+    g.drawImage(spr, Math.round(d.x - spr.width / 2) + ox, oy - spr.height + 1 - bob);
+  }
 
   drawTower(game, ox, oy) {
     const { g, H } = this;
@@ -571,17 +593,6 @@ export class Renderer {
       scale: 2, colors: LOGO_COLORS, outline: INK, shadow: INK, align: 'center', wave: 2, waveSpeed: 4, time: t,
     });
     drawText(g, 'LA TORRETTA CHE DONDOLA', W / 2, y0 + 46, { color: PAL.cream, outline: INK, align: 'center' });
-
-    const pw = 156;
-    const px = Math.round(W / 2 - pw / 2);
-    panel(g, px, y0 + 64, pw, 52);
-    const lines = [
-      ['TAP OR SPACE TO DROP', PAL.cream],
-      ['STACK THE PALAZZO HIGH', PAL.cream],
-      ['PERFECT DROPS CALM SWAY', PAL.gold],
-      ['EVERY 10 FLOORS: A GIFT', PAL.purple],
-    ];
-    lines.forEach(([text, color], i) => drawText(g, text, W / 2, y0 + 70 + i * 11, { color, align: 'center' }));
 
     if (Math.floor(t * 2.5) % 2 === 0) {
       drawText(g, 'TAP TO START', W / 2, y0 + 128, { color: PAL.cream, outline: INK, shadow: INK, align: 'center' });

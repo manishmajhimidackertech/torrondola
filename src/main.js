@@ -26,6 +26,7 @@ function resize() {
   canvas.style.height = `${(H * scale) / dpr}px`;
   renderer.resize(W, H, scale);
   game.viewH = H;
+  game.viewW = W;
 }
 
 function toggleMute() {

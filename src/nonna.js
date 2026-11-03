@@ -17,6 +17,7 @@ const LINES = {
   wind: ['CHE VENTO!', 'TIRA VENTO!'],
   pigeon: ['VIA, PICCIONE!', 'SCIO!'],
   ufo: ['UN UFO?!', 'MAMMA MIA!'],
+  dozer: ['GRAZIE, MARIO!', 'PULIZIA!'],
   topple: ['MAMMA MIA!!', 'NOOO!'],
   over: ['RIPROVA!', 'ANCORA UNA!', 'CORAGGIO!'],
   overBest: ['CHE BRAVO!', 'BRAVISSIMO!'],

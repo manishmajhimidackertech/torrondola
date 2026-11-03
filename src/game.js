@@ -2,9 +2,10 @@
 //
 // World coordinates: x = 0 is the tower's starting column, y = 0 is the ground
 // and grows downward like the canvas, so block i occupies y in [-(i+1)*BH, -i*BH].
-import { BW, BH, CFG, GAME_H, TOWER_TOP_Y } from './config.js';
+import { BW, BH, CFG, GAME_H, GAME_W, TOWER_TOP_Y } from './config.js';
 import { FLOOR_SEEDS, PAL, STYLES, baseSprite, floorSprite, goldSprite } from './sprites.js';
 import { computeMods, dealCards } from './cards.js';
+import { DOZER_BACK, DOZER_REACH } from './art.js';
 import { Nonna } from './nonna.js';
 import { writeSave } from './storage.js';
 
@@ -32,7 +33,13 @@ export class Game {
     this.rope = CFG.ropeShort;
     this.ropeVel = 0;
     this.cam = { x: 0, y: 0 };
-    this.viewH = GAME_H; // virtual screen height, set by main.js on resize
+    this.viewH = GAME_H; // virtual screen size, set by main.js on resize
+    this.viewW = GAME_W;
+    // Fallen floors lying in the street, and the bulldozer that clears them.
+    // Both outlive a reset so the dozer can tidy up after the last game.
+    this.rubble = [];
+    this.dozer = null;
+    this.crewIn = 0;
     this.onFinish = null; // set by main.js to build the postcard
     this.titleTalk = 1.2;
     this.reset();
@@ -291,6 +298,7 @@ export class Game {
     this.updateSky(dt);
     this.updateCamera(dt);
     this.updateFx(dt);
+    this.updateCrew(dt);
   }
 
   updatePlay(dt) {
@@ -640,6 +648,91 @@ export class Game {
     this.cam.x += (top.ox - this.cam.x) * (1 - Math.exp(-dt * 2));
   }
 
+  // --- fallen floors and the bulldozer ---------------------------------------
+
+  groundVisible() {
+    return -this.cam.y < this.viewH + 10;
+  }
+
+  // A falling block hits the street: it drops flat (upright, on its side or
+  // upside down), clear of the tower's ground floor.
+  settle(d) {
+    d.settled = true;
+    const k = Math.round(d.rot / (Math.PI / 2));
+    const onSide = Math.abs(k) % 2 === 1;
+    const w = onSide ? BH / 2 : BW / 2;
+    const h = onSide ? BW / 2 : BH / 2;
+    const baseX = this.blocks[0].ox;
+    const clear = BW / 2 + w + 1;
+    let x = d.x;
+    if (Math.abs(x - baseX) < clear) x = baseX + (Math.sign(x - baseX) || 1) * clear;
+    if (Math.abs(x - this.cam.x) > this.viewW / 2 + 60) return; // landed out of sight
+    this.rubble.push({ x, y: -h, w, h, rot: d.rot, target: (k * Math.PI) / 2, sprite: d.sprite });
+    if (this.rubble.length > 14) this.rubble.shift();
+    this.crewIn = Math.max(this.crewIn, 1.4);
+    if (this.groundVisible()) {
+      this.dust(x, 0);
+      this.shake = Math.max(this.shake, 1.5);
+      this.sound.thud();
+    }
+  }
+
+  // Once things settle and the street is on screen, the dozer drives across
+  // and shoves every piece of rubble off the far edge.
+  updateCrew(dt) {
+    for (const r of this.rubble) r.rot += (r.target - r.rot) * Math.min(1, dt * 18);
+    const d = this.dozer;
+    if (!d) {
+      if (this.rubble.length && (this.crewIn -= dt) <= 0 && this.groundVisible()) this.callDozer();
+      return;
+    }
+    d.t += dt;
+    d.x += d.dir * CFG.dozerSpeed * dt;
+
+    // Push the rubble ahead of the blade; each piece pushes the one in front of it.
+    const ahead = this.rubble.filter((r) => d.dir * (r.x + d.dir * r.w - d.x) > 0).sort((a, b) => d.dir * (a.x - b.x));
+    let front = d.x + d.dir * DOZER_REACH;
+    for (const r of ahead) {
+      if (d.dir * (front - (r.x - d.dir * r.w)) <= 0) break;
+      r.x = front + d.dir * r.w;
+      front = r.x + d.dir * r.w;
+    }
+    if (ahead.length && d.dir * (front - (d.x + d.dir * DOZER_REACH)) > 0 && Math.random() < dt * 12) {
+      this.particle({
+        x: front - d.dir * 4,
+        y: -2,
+        vx: -d.dir * (10 + Math.random() * 20),
+        vy: -10 - Math.random() * 15,
+        life: 0.4,
+        color: '#9a8fb8',
+      });
+    }
+
+    const edge = this.cam.x + d.dir * (this.viewW / 2 + 30);
+    this.rubble = this.rubble.filter((r) => d.dir * (r.x - d.dir * r.w - edge) < 0);
+    if ((d.puff -= dt) <= 0) {
+      d.puff = 0.14;
+      this.particle({ x: d.x + d.dir * 3, y: -20, vx: -d.dir * 8, vy: -18, g: -6, life: 0.7, color: '#6c6488', size: 2 });
+      if (this.groundVisible() && !this.paused) this.sound.chug();
+    }
+    if (d.dir * (d.x - d.dir * DOZER_BACK - edge) > 0) {
+      this.dozer = null;
+      this.crewIn = 1;
+    }
+  }
+
+  // The dozer comes in from the side with less rubble and pushes toward the side with more.
+  callDozer() {
+    const lean = this.rubble.reduce((s, r) => s + Math.sign(r.x - this.cam.x), 0);
+    const dir = lean >= 0 ? 1 : -1;
+    // start off screen, and behind every piece so they're all ahead of the blade
+    const rear = dir > 0 ? Math.min(...this.rubble.map((r) => r.x - r.w)) : Math.max(...this.rubble.map((r) => r.x + r.w));
+    const offscreen = this.cam.x - dir * (this.viewW / 2 + 30);
+    const x = dir > 0 ? Math.min(offscreen, rear - DOZER_REACH - 2) : Math.max(offscreen, rear + DOZER_REACH + 2);
+    this.dozer = { x, dir, t: 0, puff: 0 };
+    this.nonna.say('dozer', { chance: 0.6 });
+  }
+
   // --- effects -------------------------------------------------------------
 
   popup(text, x, y, { color, scale = 1, life = 1, wave = 0 }) {
@@ -721,8 +814,11 @@ export class Game {
       d.x += d.vx * dt;
       d.y += d.vy * dt;
       d.rot += d.vr * dt;
+      // lowest point of the spinning block; once it reaches the street it stays there
+      const low = (BW / 2) * Math.abs(Math.sin(d.rot)) + (BH / 2) * Math.abs(Math.cos(d.rot));
+      if (d.vy > 0 && d.y + low >= 0) this.settle(d);
     }
-    this.debris = this.debris.filter((d) => d.y < this.cam.y + 1200);
+    this.debris = this.debris.filter((d) => !d.settled && d.y < this.cam.y + 1200);
 
     for (const p of this.particles) {
       p.vy += p.g * dt;
