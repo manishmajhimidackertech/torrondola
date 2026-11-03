@@ -147,7 +147,7 @@ export function renderPostcard(s, { width = CARD_W, photoH = 110 } = {}) {
   drawText(g, s.newRecord ? 'NEW HEIGHT!' : 'FLOORS', left, y + 6, { color: s.newRecord ? RED : LABEL, align: 'center' });
   drawText(g, s.floors, left, y + 16, { color: INK, align: 'center' });
   drawText(g, 'BEST COMBO', right, y + 6, { color: LABEL, align: 'center' });
-  drawText(g, `X${s.bestCombo}`, right, y + 16, { color: INK, align: 'center' });
+  drawText(g, s.bestCombo ? `X${s.bestCombo}` : '-', right, y + 16, { color: INK, align: 'center' });
 
   y += 29;
   rule(g, y, W);
@@ -174,7 +174,6 @@ export function postcardFile(card) {
   const pad = 8;
   const scale = 4;
   const [c, g] = makeCanvas((card.width + pad * 2) * scale, (card.height + pad * 2) * scale);
-  g.imageSmoothingEnabled = false;
   g.fillStyle = '#1d1236';
   g.fillRect(0, 0, c.width, c.height);
   g.drawImage(card, pad * scale, pad * scale, card.width * scale, card.height * scale);

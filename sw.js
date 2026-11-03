@@ -1,6 +1,6 @@
 // Offline support: precache the whole game, serve from cache, refresh in the background.
 // Bump VERSION when files are added or removed so old caches get cleaned up.
-const VERSION = 'v5';
+const VERSION = 'v6';
 const CACHE = `torrondola-${VERSION}`;
 const ASSETS = [
   './',

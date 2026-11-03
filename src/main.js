@@ -27,6 +27,7 @@ function resize() {
   renderer.resize(W, H, scale);
   game.viewH = H;
   game.viewW = W;
+  if (game.state === 'over' && game.summary) buildPostcard(game.summary); // e.g. the phone was rotated
 }
 
 function toggleMute() {
@@ -39,17 +40,21 @@ function toggleMute() {
 
 let postcard = null; // { file, text } once the PNG is ready
 
-game.onFinish = (summary) => {
+// Draws the results card sized for the current screen and prepares its PNG.
+function buildPostcard(summary) {
   const card = renderPostcard(summary, renderer.resultCardSize());
   renderer.postcard = card;
   renderer.shareLabel = 'SAVE IMAGE';
   postcard = null;
   const text = `I built a ${summary.floors}-floor palazzo in Torrondola!`;
   postcardFile(card).then((file) => {
+    if (renderer.postcard !== card) return; // a newer card replaced this one
     postcard = { file, text };
     if (canShareFiles(file)) renderer.shareLabel = 'SHARE';
   });
-};
+}
+
+game.onFinish = buildPostcard;
 
 // --- input ----------------------------------------------------------------------
 
@@ -71,7 +76,10 @@ canvas.addEventListener('pointerdown', (e) => {
   else if (id === 'restart') game.restart();
   else if (id === 'quit' || id === 'menu') game.quit();
   else if (id?.startsWith('card')) game.tapCard(Number(id.slice(4)));
-  else if (!game.paused) game.press(); // while paused only the menu buttons respond
+  else if (id === 'retry') game.press();
+  // Paused and results screens only respond to their buttons, so a stray tap
+  // can't resume a game or throw away the results card.
+  else if (!game.paused && game.state !== 'over') game.press();
 });
 
 canvas.addEventListener('pointerup', (e) => {
@@ -84,7 +92,7 @@ canvas.addEventListener('pointerup', (e) => {
 const DROP_KEYS = new Set(['Space', 'Enter', 'ArrowDown', 'KeyS']);
 window.addEventListener('keydown', (e) => {
   if (e.repeat) return;
-  sound.unlock();
+  if (e.code !== 'Escape') sound.unlock(); // browsers don't count Esc as a gesture that may start audio
   if (e.code === 'KeyM') toggleMute();
   else if (e.code === 'Escape' && game.state === 'over') game.quit();
   else if (e.code === 'KeyQ' && game.paused) game.quit();

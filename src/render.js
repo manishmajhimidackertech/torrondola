@@ -128,7 +128,7 @@ export class Renderer {
     const { g, W } = this;
     this.frame++;
     this.buttons = [];
-    const dt = clamp(game.time - this.lastTime, 0, 0.05);
+    const dt = game.paused ? 0 : clamp(game.time - this.lastTime, 0, 0.05);
     this.lastTime = game.time;
     const shx = game.shake ? Math.round((Math.random() * 2 - 1) * game.shake) : 0;
     const shy = game.shake ? Math.round((Math.random() * 2 - 1) * game.shake) : 0;

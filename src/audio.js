@@ -97,7 +97,8 @@ export class Sound {
 
   // amount 0..1
   setWind(amount) {
-    if (!this.windGain) return;
+    if (!this.windGain || Math.abs(amount - (this.windLevel ?? -1)) < 0.01) return;
+    this.windLevel = amount;
     const t = this.ctx.currentTime;
     this.windGain.gain.setTargetAtTime(amount * 0.35, t, 0.15);
     this.windFilter.frequency.setTargetAtTime(350 + amount * 900, t, 0.15);

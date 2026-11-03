@@ -50,11 +50,14 @@ export function rng(seed) {
   };
 }
 
+// Every canvas the game draws into: nearest-neighbour scaling, never smoothed.
 export function makeCanvas(w, h) {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
-  return [c, c.getContext('2d')];
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  return [c, g];
 }
 
 function rect(g, color, x, y, w, h) {
