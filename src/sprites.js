@@ -382,87 +382,275 @@ export const pauseIcon = maskSprite(['cc.cc', 'cc.cc', 'cc.cc', 'cc.cc', 'cc.cc'
 // --- city and sky ------------------------------------------------------------
 
 // --- countryside --------------------------------------------------------------
+// Everything stands on `base`: the y of the ground under it. Buildings get the
+// lowest ground under their whole footprint, so on a slope the uphill side
+// settles into the hill instead of the downhill side floating in the air.
 
-function cypress(g, x, base, h, body, light) {
+const DOOR = '#6b4a30';
+const DARK = '#3a2e26';
+
+function cypress(g, x, base, h, p) {
   for (let j = 0; j < h; j++) {
     const w = j < 2 ? 1 : j < 5 ? 2 : j > h - 3 ? 3 : 4;
     const left = x - Math.floor(w / 2);
-    rect(g, body, left, base - h + j, w, 1);
-    if (w > 2 && j % 3 === 0) rect(g, light, left, base - h + j, 1, 1);
+    rect(g, p.tree, left, base - h + j, w, 1);
+    if (w > 2 && j % 3 === 0) rect(g, p.treeLight, left, base - h + j, 1, 1);
   }
 }
 
-function olive(g, x, base, leaf, shade) {
+function olive(g, x, base, p) {
   rect(g, '#7a5a3a', x, base - 3, 1, 3);
-  rect(g, leaf, x - 3, base - 7, 7, 3);
-  rect(g, leaf, x - 2, base - 8, 5, 1);
-  rect(g, shade, x - 3, base - 5, 7, 1);
+  rect(g, p.olive, x - 3, base - 7, 7, 3);
+  rect(g, p.olive, x - 2, base - 8, 5, 1);
+  rect(g, p.oliveShade, x - 3, base - 5, 7, 1);
 }
 
-function farmhouse(g, x, base, r, walls, roof) {
-  const w = 9 + Math.floor(r() * 6);
-  const h = 6 + Math.floor(r() * 3);
-  rect(g, walls[0], x, base - h, w, h);
-  rect(g, walls[1], x + w - 2, base - h, 2, h);
-  for (let j = 0; j < 3; j++) rect(g, roof, x - 1 + j, base - h - 1 - j, w + 2 - j * 2, 1);
-  rect(g, '#5a4a3a', x + 2, base - h + 2, 2, 2);
-  if (w > 11) rect(g, '#5a4a3a', x + w - 5, base - h + 2, 2, 2);
-  rect(g, '#6b4a30', x + Math.floor(w / 2), base - 3, 2, 3);
+// Pino domestico: a tall bare trunk under a flat, wide canopy.
+function umbrellaPine(g, x, base, p) {
+  rect(g, '#7a5a3a', x, base - 10, 1, 10);
+  rect(g, p.pine, x - 5, base - 13, 11, 3);
+  rect(g, p.pine, x - 3, base - 14, 7, 1);
+  rect(g, p.pineLight, x - 4, base - 13, 8, 1);
 }
 
-// A hill town: a cluster of little houses around a bell tower (campanile).
-function hillTown(g, x, base, r, walls, roof) {
-  const tower = x + 6 + Math.floor(r() * 8);
-  for (let i = 0; i < 5; i++) {
-    const hx = x + i * 5 + Math.floor(r() * 2);
-    const hh = 3 + Math.floor(r() * 4);
-    rect(g, walls, hx, base - hh, 5, hh);
-    rect(g, roof, hx, base - hh - 1, 5, 1);
+function haystacks(g, x, ground, r) {
+  const n = 2 + Math.floor(r() * 2);
+  for (let i = 0; i < n; i++) {
+    const hx = x + i * 6;
+    const base = Math.max(ground(hx), ground(hx + 4));
+    rect(g, '#e2b450', hx, base - 4, 5, 4);
+    rect(g, '#f2cf72', hx + 1, base - 4, 3, 1);
+    rect(g, '#c8963a', hx, base - 1, 5, 1);
+    rect(g, '#c8963a', hx + 2, base - 3, 1, 1);
   }
-  rect(g, walls, tower, base - 14, 3, 14);
-  rect(g, '#5a4a3a', tower + 1, base - 12, 1, 2);
-  rect(g, roof, tower, base - 15, 3, 1);
-  rect(g, roof, tower + 1, base - 16, 1, 1);
+  return n * 6;
+}
+
+// A patch of sunflowers in rows down the hillside.
+function sunflowers(g, x, ground, w) {
+  for (let i = 0; i < w; i++) {
+    for (let k = 0; k < 3; k++) {
+      if ((i + k) % 2) continue;
+      const y = ground(x + i) + k * 2;
+      rect(g, '#f5c542', x + i, y, 1, 1);
+      rect(g, '#4f8a3f', x + i, y + 1, 1, 1);
+    }
+  }
+}
+
+function windowPair(g, x, y, p, shutters) {
+  rect(g, DARK, x, y, 2, 2);
+  if (shutters) {
+    rect(g, p.shutter, x - 1, y, 1, 2);
+    rect(g, p.shutter, x + 2, y, 1, 2);
+  }
+}
+
+function farmhouse(g, x, base, r, p, small) {
+  const w = small ? 6 + Math.floor(r() * 3) : 10 + Math.floor(r() * 5);
+  const h = small ? 4 : 6 + Math.floor(r() * 3);
+  rect(g, p.walls, x, base - h, w, h);
+  rect(g, p.shade, x + w - 2, base - h, 2, h);
+  const rows = small ? 2 : 3;
+  for (let j = 0; j < rows; j++) rect(g, p.roof, x - 1 + j, base - h - 1 - j, w + 2 - j * 2, 1);
+  if (!small) {
+    rect(g, p.roofDark, x - 1, base - h - 1, w + 2, 1);
+    rect(g, p.shade, x + 2, base - h - 5, 1, 2); // chimney
+    const shutters = r() < 0.6;
+    windowPair(g, x + 2, base - h + 2, p, shutters);
+    if (w > 11) windowPair(g, x + w - 5, base - h + 2, p, shutters);
+    rect(g, DOOR, x + Math.floor(w / 2), base - 3, 2, 3);
+  }
+  return w;
+}
+
+// Fienile: a stone barn with a big arched opening.
+function barn(g, x, base, r, p) {
+  const w = 12;
+  const h = 7;
+  rect(g, p.stone, x, base - h, w, h);
+  for (let i = 0; i < 6; i++) rect(g, p.stoneDark, x + Math.floor(r() * w), base - 1 - Math.floor(r() * (h - 1)), 1, 1);
+  rect(g, DARK, x + 4, base - 5, 4, 5);
+  rect(g, p.stone, x + 4, base - 5, 1, 1);
+  rect(g, p.stone, x + 7, base - 5, 1, 1);
+  rect(g, p.roof, x - 1, base - h - 1, w + 2, 1);
+  rect(g, p.roof, x, base - h - 2, w, 1);
+  return w;
+}
+
+// Chiesetta: a little country chapel with a bell gable.
+function chapel(g, x, base, r, p) {
+  const w = 9;
+  const h = 8;
+  rect(g, p.walls, x, base - h, w, h);
+  rect(g, p.shade, x + w - 1, base - h, 1, h);
+  for (let j = 0; j < 5; j++) rect(g, p.roof, x - 1 + j, base - h - 1 - j, w + 2 - j * 2, 1);
+  rect(g, p.walls, x + 3, base - h - 9, 3, 4);
+  rect(g, DARK, x + 4, base - h - 8, 1, 2);
+  rect(g, p.roof, x + 3, base - h - 10, 3, 1);
+  rect(g, DARK, x + 4, base - h + 2, 1, 1); // rose window
+  rect(g, DOOR, x + 3, base - 4, 3, 4);
+  rect(g, p.walls, x + 3, base - 4, 1, 1);
+  rect(g, p.walls, x + 5, base - 4, 1, 1);
+  return w;
+}
+
+// An ochre villa with green shutters and a loggia of three arches.
+function villa(g, x, base, r, p) {
+  const w = 22;
+  const h = 11;
+  rect(g, p.ochre, x, base - h, w, h);
+  rect(g, p.ochreShade, x + w - 3, base - h, 3, h);
+  rect(g, p.roof, x - 1, base - h - 1, w + 2, 1);
+  rect(g, p.roof, x + 1, base - h - 2, w - 2, 1);
+  rect(g, p.roofDark, x - 1, base - h - 1, w + 2, 1);
+  for (let i = 0; i < 4; i++) windowPair(g, x + 3 + i * 5, base - h + 2, p, true);
+  for (let i = 0; i < 3; i++) {
+    const ax = x + 3 + i * 6;
+    rect(g, '#4a3a30', ax, base - 4, 4, 4);
+    rect(g, p.ochre, ax, base - 4, 1, 1);
+    rect(g, p.ochre, ax + 3, base - 4, 1, 1);
+  }
+  return w;
+}
+
+// A tall stone tower house, San Gimignano style.
+function towerHouse(g, x, base, r, p) {
+  const h = 16 + Math.floor(r() * 6);
+  rect(g, p.stone, x, base - h, 5, h);
+  rect(g, p.stoneDark, x + 4, base - h, 1, h);
+  for (let y = base - h + 3; y < base - 3; y += 5) rect(g, DARK, x + 2, y, 1, 2);
+  for (const cx of [0, 2, 4]) rect(g, p.stone, x + cx, base - h - 1, 1, 1);
+  rect(g, DOOR, x + 1, base - 3, 2, 3);
+  return 5;
+}
+
+// The one castle on the skyline: a walled hill town with its keep and church.
+function castleTown(g, x, base, p) {
+  for (const [hx, hh] of [[2, 7], [6, 9], [13, 6], [26, 8], [30, 6]]) {
+    rect(g, p.walls, x + hx, base - hh, 4, hh);
+    rect(g, p.roof, x + hx, base - hh - 1, 4, 1);
+  }
+  rect(g, p.walls, x + 18, base - 18, 5, 18); // keep
+  rect(g, p.shade, x + 22, base - 18, 1, 18);
+  for (const cx of [18, 20, 22]) rect(g, p.walls, x + cx, base - 19, 1, 1);
+  rect(g, DARK, x + 20, base - 14, 1, 2);
+  rect(g, p.walls, x + 10, base - 13, 3, 13); // bell tower
+  rect(g, p.roof, x + 10, base - 14, 3, 1);
+  rect(g, p.roof, x + 11, base - 15, 1, 1);
+  rect(g, DARK, x + 11, base - 11, 1, 2);
+  rect(g, p.shade, x, base - 5, 36, 5); // town walls
+  for (let i = 0; i < 36; i += 2) rect(g, p.shade, x + i, base - 6, 1, 1);
+  rect(g, DARK, x + 16, base - 3, 2, 3); // gate
+  return 36;
 }
 
 // A strip of rolling hills, bottom-aligned in a width x height canvas. The ridge
 // is a sum of sines with whole cycles per strip, so the strip tiles seamlessly.
-// Cypresses, olive trees, farmhouses and hill towns sit along the ridge.
+// o.weights picks what grows along the ridge; o.castle places the one castle
+// at that fraction of the strip, on the nearest hilltop.
 export function makeHills(width, height, seed, o) {
   const [c, g] = makeCanvas(width, height);
   const r = rng(seed);
   const waves = o.waves.map(([amp, cycles]) => [amp, cycles, r() * Math.PI * 2]);
   const ridge = (x) =>
     Math.round(o.base + waves.reduce((s, [amp, cyc, ph]) => s + amp * Math.sin((x / width) * Math.PI * 2 * cyc + ph), 0));
+  const ground = (x) => ridge(x) + 2;
+  const span = (x0, w) => {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let x = x0; x < x0 + w; x++) {
+      lo = Math.min(lo, ground(x));
+      hi = Math.max(hi, ground(x));
+    }
+    return { floor: hi, slope: hi - lo };
+  };
+
   for (let x = 0; x < width; x++) {
     const top = ridge(x);
     rect(g, o.hill, x, top, 1, height - top);
     rect(g, o.rim, x, top, 1, 1);
-    // vineyard rows following the slope
     if (o.rows && Math.floor(x / 40) % 3 === 1) {
-      for (let k = 1; k <= 4; k++) if ((x + k) % 2) rect(g, o.rows, x, top + 3 + k * 4, 1, 1);
+      for (let k = 1; k <= 4; k++) if ((x + k) % 2) rect(g, o.rows, x, top + 3 + k * 4, 1, 1); // vineyard rows
     }
   }
-  for (let x = 6; x < width - 20; ) {
-    const base = ridge(x) + 2;
-    const roll = r();
-    if (roll < o.town) {
-      hillTown(g, x, base + 1, r, o.houseWalls[0], o.roof);
-      x += 34;
-    } else if (roll < o.town + o.house) {
-      farmhouse(g, x, base + 1, r, o.houseWalls, o.roof);
-      x += 18 + Math.floor(r() * 10);
-    } else if (roll < o.town + o.house + o.cypress) {
-      const n = 1 + Math.floor(r() * 4); // cypresses grow in little rows
-      for (let i = 0; i < n; i++) cypress(g, x + i * 4, ridge(x + i * 4) + 2, o.treeH[0] + Math.floor(r() * o.treeH[1]), o.tree, o.treeLight);
-      x += n * 4 + 6 + Math.floor(r() * 10);
-    } else if (roll < o.town + o.house + o.cypress + o.olive) {
-      olive(g, x, base, o.olives[0], o.olives[1]);
-      x += 10 + Math.floor(r() * 8);
-    } else {
-      x += 8 + Math.floor(r() * 14);
+
+  // The castle sits on the highest point near its spot; nothing else crowds it.
+  let castle = null;
+  if (o.castle) {
+    let best = Infinity;
+    for (let x = Math.round(width * o.castle) - 8; x < width * o.castle + 8; x++) {
+      const s = span(x, 36);
+      const score = ridge(x + 18) + s.slope * 2;
+      if (score < best) {
+        best = score;
+        castle = { x, base: s.floor + 1 };
+      }
     }
   }
+
+  const kinds = Object.entries(o.weights);
+  const total = kinds.reduce((sum, [, w]) => sum + w, 0);
+  for (let x = 6; x < width - 30; ) {
+    if (castle && x > castle.x - 14 && x < castle.x + 40) {
+      x = castle.x + 40;
+      continue;
+    }
+    let roll = r() * total;
+    let kind = kinds.find(([, w]) => (roll -= w) < 0)?.[0] ?? 'gap';
+    const sizes = { farmhouse: 16, barn: 13, chapel: 10, villa: 23, tower: 6, cottage: 9 };
+    // buildings only go on gentle ground; a steep spot gets trees instead
+    if (sizes[kind] && span(x, sizes[kind]).slope > 4) kind = 'cypress';
+    const base = sizes[kind] ? span(x, sizes[kind]).floor + 1 : ground(x);
+    let used;
+    switch (kind) {
+      case 'farmhouse':
+        used = farmhouse(g, x, base, r, o.p, false);
+        break;
+      case 'cottage':
+        used = farmhouse(g, x, base, r, o.p, true);
+        break;
+      case 'barn':
+        used = barn(g, x, base, r, o.p);
+        break;
+      case 'chapel':
+        used = chapel(g, x, base, r, o.p);
+        break;
+      case 'villa':
+        used = villa(g, x, base, r, o.p);
+        break;
+      case 'tower':
+        used = towerHouse(g, x, base, r, o.p);
+        break;
+      case 'cypress': {
+        const n = 1 + Math.floor(r() * 4); // cypresses grow in little rows
+        for (let i = 0; i < n; i++) cypress(g, x + i * 4, ground(x + i * 4), o.treeH[0] + Math.floor(r() * o.treeH[1]), o.p);
+        used = n * 4;
+        break;
+      }
+      case 'olive': {
+        const n = 1 + Math.floor(r() * 3); // a small grove
+        for (let i = 0; i < n; i++) olive(g, x + 3 + i * 8, ground(x + 3 + i * 8), o.p);
+        used = n * 8;
+        break;
+      }
+      case 'pine':
+        umbrellaPine(g, x + 5, ground(x + 5), o.p);
+        used = 11;
+        break;
+      case 'hay':
+        used = haystacks(g, x, ground, r);
+        break;
+      case 'sunflowers':
+        used = 14 + Math.floor(r() * 10);
+        sunflowers(g, x, ground, used);
+        break;
+      default:
+        used = 4;
+    }
+    x += used + 4 + Math.floor(r() * 8);
+  }
+  if (castle) castleTown(g, castle.x, castle.base, o.p);
   return c;
 }
 

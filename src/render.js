@@ -23,7 +23,7 @@ const FLOORS_PER_THEME = 22;
 const LOGO_COLORS = [PAL.red, PAL.gold, PAL.green, PAL.blue, PAL.purple];
 const ROPE = '#f2e3c6';
 const ROPE_SHADE = '#6e4f63';
-const HILLS_W = 720;
+const HILLS_W = 1024; // wider than any screen, so nothing visibly repeats
 const FAR_HILL = '#8cc2a2';
 const NEAR_HILL = '#5e9e57';
 const DIM = 'rgba(16,8,28,0.62)';
@@ -50,17 +50,28 @@ export class Renderer {
     this.shareLabel = 'SAVE IMAGE';
 
     // distant hills are paler and bluer, near ones greener and more detailed
+    // Distant hills are paler and bluer, with the one castle on a hilltop just
+    // right of the tower; near hills are greener, with farms and trees.
     this.farHills = makeHills(HILLS_W, 120, 7, {
-      base: 62, waves: [[14, 2], [8, 5], [3, 11]], hill: FAR_HILL, rim: '#a3d1b4',
-      tree: '#6fa98a', treeLight: '#80b898', treeH: [6, 6], olives: ['#86b79a', '#78a98c'],
-      houseWalls: ['#e6dcc8', '#d4c8b0'], roof: '#c98a72',
-      town: 0.07, house: 0.05, cypress: 0.3, olive: 0.15,
+      base: 62, waves: [[14, 2], [8, 5], [3, 11]], hill: FAR_HILL, rim: '#a3d1b4', treeH: [6, 6],
+      castle: 0.5 + 40 / HILLS_W, // just right of the tower
+      p: {
+        tree: '#6fa98a', treeLight: '#80b898', olive: '#86b79a', oliveShade: '#78a98c', pine: '#6fa98a', pineLight: '#80b898',
+        walls: '#e6dcc8', shade: '#d4c8b0', roof: '#c98a72', roofDark: '#b8796a', stone: '#d8ccb4', stoneDark: '#c4b89e',
+        ochre: '#e6cf9e', ochreShade: '#d6bd88', shutter: '#86b79a',
+      },
+      weights: { cottage: 6, cypress: 30, olive: 14, gap: 20 },
     });
     this.nearHills = makeHills(HILLS_W, 90, 21, {
-      base: 44, waves: [[10, 3], [6, 7], [2, 13]], hill: NEAR_HILL, rim: '#7cbb68', rows: '#548f4e',
-      tree: '#2f6b3f', treeLight: '#3f8a4f', treeH: [10, 12], olives: ['#8aa86f', '#6f8c58'],
-      houseWalls: ['#f0e0bc', '#d9c69e'], roof: '#c0563c',
-      town: 0, house: 0.1, cypress: 0.35, olive: 0.25,
+      base: 44, waves: [[10, 3], [6, 7], [2, 13]], hill: NEAR_HILL, rim: '#7cbb68', rows: '#548f4e', treeH: [10, 12],
+      p: {
+        tree: '#2f6b3f', treeLight: '#3f8a4f', olive: '#8aa86f', oliveShade: '#6f8c58', pine: '#3f6f3a', pineLight: '#558a4a',
+        walls: '#f0e0bc', shade: '#d9c69e', roof: '#c0563c', roofDark: '#9a3e2b', stone: '#cdbb98', stoneDark: '#a8936e',
+        ochre: '#e8c27a', ochreShade: '#cfa45c', shutter: '#4c8a57',
+      },
+      weights: {
+        farmhouse: 8, barn: 5, chapel: 3, villa: 4, tower: 3, cypress: 22, olive: 14, pine: 8, hay: 5, sunflowers: 5, gap: 14,
+      },
     });
     this.cobbles = makeCobbles();
 
@@ -270,18 +281,19 @@ export class Renderer {
     const { g, W, H } = this;
     const gy = oy; // ground's screen y
     const gy0 = game.groundHomeY();
-    // Each city layer slides down slower than the ground; below its skyline it is solid.
-    const layer = (img, color, parallax, depth) => {
+    // Each hill layer slides down slower than the ground; below its ridge it is
+    // solid. `centre` is the x in the strip that sits behind the tower.
+    const layer = (img, color, parallax, depth, centre) => {
       const base = Math.round(gy0 + (gy - gy0) * depth);
       const top = base - img.height + 2;
       if (top >= H) return;
-      const x0 = Math.round(W / 2 - game.cam.x * parallax - HILLS_W / 2);
+      const x0 = Math.round(W / 2 - game.cam.x * parallax - centre);
       for (let x = ((x0 % HILLS_W) + HILLS_W) % HILLS_W - HILLS_W; x < W; x += HILLS_W) g.drawImage(img, x, top);
       g.fillStyle = color;
       g.fillRect(0, base + 2, W, H - base - 2);
     };
-    layer(this.farHills, FAR_HILL, 0.3, 0.45);
-    layer(this.nearHills, NEAR_HILL, 0.6, 0.7);
+    layer(this.farHills, FAR_HILL, 0.3, 0.45, HILLS_W / 2);
+    layer(this.nearHills, NEAR_HILL, 0.6, 0.7, 820); // the stretch with the chapel, pines, sunflowers and villa
 
     if (gy < H) {
       g.fillStyle = '#efe2c4';
