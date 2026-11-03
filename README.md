@@ -46,7 +46,7 @@ You start with 3 lives. The game ends when you run out of lives or when the towe
 
 - **Golden floors.** About one floor in fourteen arrives gilded. Landing one is worth ×3 points.
 - **Your record.** A pennant marks the height of your best tower. Climb past it for *Nuovo record!* and confetti.
-- **Wind.** From floor 25, gusts are announced in the HUD, then push falling blocks and the tower sideways.
+- **Wind.** From floor 25, gusts are announced in the HUD, then push falling blocks and the tower sideways. Each gust picks its direction at random. Clouds and the balloon always drift with the air: a gentle breeze that wanders from side to side, swinging round to follow each gust.
 - **Fallen floors.** Missed blocks and toppled floors crash into the street and pile up as rubble (a piece landing on another skids aside so the one behind still shows). A little bulldozer then drives in and shoves the whole pile off the screen together.
 - **The sky.** It starts as a blue day over the Tuscan countryside (farmhouses, a stone barn, a chapel, a villa, tower houses, haystacks, sunflower fields, cypresses, umbrella pines, olive groves and one walled castle-town on a hilltop) and turns to sunset, night and finally space as you climb. On the way up you pass clouds, a tricolore hot-air balloon, the moon and satellites, and up high, the occasional UFO. Pigeons land on the roof and flee from the next floor.
 - **The palazzo.** Floors come with shutters (*persiane*), flower boxes, balconies with geraniums, arched windows and laundry lines. The building changes colour every 10 floors.

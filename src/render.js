@@ -76,11 +76,13 @@ export class Renderer {
     this.cobbles = makeCobbles();
 
     const r = rng(99);
+    // x is set on first draw, once the screen width is known.
     this.clouds = Array.from({ length: 36 }, (_, k) => ({
       sprite: makeCloud(k + 1),
-      x: (r() - 0.5) * 320,
+      u: r(),
+      x: null,
       y: -(260 + k * 130 + r() * 90),
-      speed: 3 + r() * 6,
+      speed: 0.7 + r() * 0.6,
     }));
     this.stars = Array.from({ length: 70 }, () => ({ x: r(), y: r(), tw: r() * 6.28 }));
   }
@@ -167,7 +169,7 @@ export class Renderer {
     this.drawFlyers(game);
     this.drawCity(game, oy);
     this.drawBalloon(game, alt);
-    this.drawClouds(game, alt);
+    this.drawClouds(game, alt, dt);
     this.drawStreet(game, ox, oy);
     this.drawRecord(game, oy);
     this.drawTower(game, ox, oy);
@@ -307,17 +309,24 @@ export class Renderer {
     }
   }
 
-  drawClouds(game, alt) {
-    const a = clamp(1 - (alt - 38) / 16, 0, 1);
-    if (!a) return;
+  // Clouds drift with the air (breeze plus gusts, either direction). A cloud
+  // only wraps around once it is fully off screen, so new ones slide in from
+  // the edge the wind blows from.
+  drawClouds(game, alt, dt) {
     const { g, W, H } = this;
+    const drift = game.airDrift();
+    const a = clamp(1 - (alt - 38) / 16, 0, 1);
     g.globalAlpha = 0.9 * a;
     for (const c of this.clouds) {
+      const w = c.sprite.width;
+      if (c.x === null) c.x = (c.u - 0.5) * (W + w);
+      c.x += drift * c.speed * dt;
+      const centre = W / 2 + c.x - game.cam.x * 0.6;
+      if (centre - w / 2 > W + 8) c.x -= W + w + 16;
+      else if (centre + w / 2 < -8) c.x += W + w + 16;
       const y = Math.round((c.y - game.cam.y) * 0.6);
-      if (y > H || y + c.sprite.height < 0) continue;
-      const wx = ((((c.x + game.time * c.speed + 200) % 400) + 400) % 400) - 200;
-      const x = Math.round(W / 2 + wx - game.cam.x * 0.6 - c.sprite.width / 2);
-      g.drawImage(c.sprite, x, y);
+      if (!a || y > H || y + c.sprite.height < 0) continue;
+      g.drawImage(c.sprite, Math.round(W / 2 + c.x - game.cam.x * 0.6 - w / 2), y);
     }
     g.globalAlpha = 1;
   }

@@ -40,6 +40,10 @@ export class Game {
     this.rubble = [];
     this.dozer = null;
     this.crewIn = 0;
+    // The prevailing breeze. Purely cosmetic (it moves clouds and the balloon,
+    // never blocks); it starts in a random direction and wanders from there.
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    this.breeze = { value: dir * 0.7, target: dir * 0.7, next: 20 + Math.random() * 25 };
     this.onFinish = null; // set by main.js to build the postcard
     this.titleTalk = 1.2;
     this.reset();
@@ -87,8 +91,7 @@ export class Game {
     this.pigeons = [];
     this.flyers = [];
     this.flyIn = 8;
-    const side = Math.random() < 0.5 ? -1 : 1;
-    this.balloon = { x: side * 110, y: -(12 + Math.random() * 6) * BH, vx: -side * (5 + Math.random() * 4) };
+    this.balloon = { x: (Math.random() - 0.5) * 120, y: -(12 + Math.random() * 6) * BH };
   }
 
   get floors() {
@@ -469,6 +472,15 @@ export class Game {
 
   // Gusts are announced, blow for a few seconds, then die down.
   updateWind(dt) {
+    // Every 20-45s the breeze turns to a new random direction and strength,
+    // easing round over a few seconds rather than flipping.
+    const b = this.breeze;
+    if ((b.next -= dt) <= 0) {
+      b.target = (Math.random() < 0.5 ? -1 : 1) * (0.4 + Math.random() * 0.6);
+      b.next = 20 + Math.random() * 25;
+    }
+    b.value += (b.target - b.value) * (1 - Math.exp(-dt * 0.4));
+
     const w = this.wind;
     if (this.state === 'play' && this.floors >= CFG.windFrom && this.endIn <= 0) {
       if (w.warn > 0) {
@@ -476,6 +488,9 @@ export class Game {
         if (w.warn <= 0) {
           w.target = w.dir * w.power;
           w.hold = 2.5 + Math.random() * 2;
+          // the breeze swings round to the gust, so clouds and wind agree afterwards too
+          b.target = w.dir * (0.6 + Math.random() * 0.4);
+          b.next = 20 + Math.random() * 25;
           this.sound.gust();
         }
       } else if (w.hold > 0) {
@@ -561,9 +576,14 @@ export class Game {
     this.nonna.say('pigeon', { chance: 0.3 });
   }
 
-  // The balloon drifts by; satellites and the odd UFO cross the sky up high.
+  // How fast clouds drift sideways (px/s, + is right): the breeze plus any gust.
+  airDrift() {
+    return CFG.breezeSpeed * this.breeze.value + CFG.gustDrift * this.wind.value;
+  }
+
+  // The balloon drifts with the air; satellites and the odd UFO cross the sky up high.
   updateSky(dt) {
-    this.balloon.x += this.balloon.vx * dt;
+    this.balloon.x += this.airDrift() * 0.8 * dt;
     for (const f of this.flyers) {
       f.u += f.du * dt;
       f.t += dt;

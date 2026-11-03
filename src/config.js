@@ -54,6 +54,8 @@ export const CFG = {
   windFrom: 25,
   windMax: 80, // sideways acceleration on a falling block, px/s^2
   windTower: 0.3, // share of the push felt by the top of the tower
+  breezeSpeed: 6, // px/s clouds drift in the background breeze (cosmetic only)
+  gustDrift: 0.45, // extra cloud speed per unit of gust strength
 
   pigeonChance: 0.22, // chance a pigeon lands on the roof after a landing
   dozerSpeed: 80, // px/s, the bulldozer clearing fallen floors
