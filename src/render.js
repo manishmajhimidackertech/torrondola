@@ -3,31 +3,32 @@
 import { BW, BH, CFG, GAME_H } from './config.js';
 import { drawText, textWidth } from './font.js';
 import {
-  INK, PAL, hookSprite, heartFull, heartEmpty, speakerOn, speakerOff, pauseIcon, makeSkyline, makeCloud, rng, shaded,
+  INK, PAL, hookSprite, heartFull, heartEmpty, speakerOn, speakerOff, pauseIcon, makeHills, makeCloud, makeCobbles, rng, shaded,
 } from './sprites.js';
 import { balloon, cardIcon, dozer, moon, nonnaFace, pigeon, satellite, ufo } from './art.js';
 import { CARDS, RARITY } from './cards.js';
 import { BAYER, box, clamp, line, panel } from './draw.js';
 import { CARD_W, PHOTO_MAX, PHOTO_MIN, cardHeight } from './postcard.js';
 
-// Swirl palettes from dark to light, blended as the tower climbs: dusk, night, space.
+// Swirl palettes from dark to light, blended as the tower climbs:
+// a blue day over the countryside, then sunset, night and finally space.
 const THEMES = [
-  ['#1d1236', '#2c1a4f', '#40246a', '#5a2f7d', '#8e3f7e'],
+  ['#5297dd', '#61a1e1', '#71abe5', '#82b6ea', '#95c2ee'],
+  ['#5b3a7a', '#9a4479', '#cf5c74', '#ea8762', '#f6b468'],
   ['#0c1430', '#13204a', '#1b2d63', '#243c7c', '#2f4d94'],
   ['#06040f', '#0e0a24', '#170f38', '#22134a', '#2f185c'],
 ].map((t) => t.map((h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))));
-const FLOORS_PER_THEME = 25;
+const FLOORS_PER_THEME = 22;
 
 const LOGO_COLORS = [PAL.red, PAL.gold, PAL.green, PAL.blue, PAL.purple];
 const ROPE = '#f2e3c6';
 const ROPE_SHADE = '#6e4f63';
-const CITY_W = 720;
-const FAR_CITY = '#160c26';
-const NEAR_CITY = '#0f0a1c';
+const HILLS_W = 720;
+const FAR_HILL = '#8cc2a2';
+const NEAR_HILL = '#5e9e57';
 const DIM = 'rgba(16,8,28,0.62)';
-const MOOD_BG = {
-  neutral: '#3d2e5c', happy: '#2f7d5b', ecstatic: '#b07a22', worried: '#5c3d6e', shocked: '#9e2f3a',
-};
+const PORTRAIT_BG = '#cfe8f5';
+const PORTRAIT = 26; // Nonna's frame, px
 
 // Results screen: headline + gap, card, gap, two rows of buttons.
 const RESULT_CHROME = 26 + 8 + 18 + 6 + 18;
@@ -48,8 +49,20 @@ export class Renderer {
     this.postcard = null; // canvas from postcard.js, set by main.js at game over
     this.shareLabel = 'SAVE IMAGE';
 
-    this.farCity = makeSkyline(CITY_W, 130, 7, FAR_CITY, '#4a2f6a', 0.1, 34, 120);
-    this.nearCity = makeSkyline(CITY_W, 80, 21, NEAR_CITY, '#ffd56b', 0.1, 14, 72);
+    // distant hills are paler and bluer, near ones greener and more detailed
+    this.farHills = makeHills(HILLS_W, 120, 7, {
+      base: 62, waves: [[14, 2], [8, 5], [3, 11]], hill: FAR_HILL, rim: '#a3d1b4',
+      tree: '#6fa98a', treeLight: '#80b898', treeH: [6, 6], olives: ['#86b79a', '#78a98c'],
+      houseWalls: ['#e6dcc8', '#d4c8b0'], roof: '#c98a72',
+      town: 0.07, house: 0.05, cypress: 0.3, olive: 0.15,
+    });
+    this.nearHills = makeHills(HILLS_W, 90, 21, {
+      base: 44, waves: [[10, 3], [6, 7], [2, 13]], hill: NEAR_HILL, rim: '#7cbb68', rows: '#548f4e',
+      tree: '#2f6b3f', treeLight: '#3f8a4f', treeH: [10, 12], olives: ['#8aa86f', '#6f8c58'],
+      houseWalls: ['#f0e0bc', '#d9c69e'], roof: '#c0563c',
+      town: 0, house: 0.1, cypress: 0.35, olive: 0.25,
+    });
+    this.cobbles = makeCobbles();
 
     const r = rng(99);
     this.clouds = Array.from({ length: 36 }, (_, k) => ({
@@ -206,7 +219,7 @@ export class Renderer {
   }
 
   drawStars(game, alt) {
-    const a = clamp((alt - 22) / 20, 0, 1);
+    const a = clamp((alt - 36) / 14, 0, 1);
     if (!a) return;
     const { g, W, H } = this;
     const span = H * 1.5;
@@ -227,11 +240,11 @@ export class Renderer {
   }
 
   drawMoon(alt) {
-    const a = clamp((alt - 22) / 8, 0, 1);
+    const a = clamp((alt - 34) / 8, 0, 1);
     if (!a) return;
     const { g, W, H } = this;
     g.globalAlpha = a;
-    g.drawImage(moon, Math.round(W * 0.74 - 9), Math.round(H * 0.16 + (alt - 40) * 0.6));
+    g.drawImage(moon, Math.round(W * 0.74 - 9), Math.round(H * 0.16 + (alt - 52) * 0.6));
     g.globalAlpha = 1;
   }
 
@@ -245,7 +258,7 @@ export class Renderer {
   }
 
   drawBalloon(game, alt) {
-    if (alt > 40) return;
+    if (alt > 44) return;
     const { g, W, H } = this;
     const b = game.balloon;
     const y = Math.round((b.y - game.cam.y) * 0.75 + Math.sin(game.time * 0.8) * 2);
@@ -262,32 +275,31 @@ export class Renderer {
       const base = Math.round(gy0 + (gy - gy0) * depth);
       const top = base - img.height + 2;
       if (top >= H) return;
-      const x0 = Math.round(W / 2 - game.cam.x * parallax - CITY_W / 2);
-      for (let x = ((x0 % CITY_W) + CITY_W) % CITY_W - CITY_W; x < W; x += CITY_W) g.drawImage(img, x, top);
+      const x0 = Math.round(W / 2 - game.cam.x * parallax - HILLS_W / 2);
+      for (let x = ((x0 % HILLS_W) + HILLS_W) % HILLS_W - HILLS_W; x < W; x += HILLS_W) g.drawImage(img, x, top);
       g.fillStyle = color;
       g.fillRect(0, base + 2, W, H - base - 2);
     };
-    layer(this.farCity, FAR_CITY, 0.3, 0.45);
-    layer(this.nearCity, NEAR_CITY, 0.6, 0.7);
+    layer(this.farHills, FAR_HILL, 0.3, 0.45);
+    layer(this.nearHills, NEAR_HILL, 0.6, 0.7);
 
     if (gy < H) {
-      g.fillStyle = '#9a8fb8';
+      g.fillStyle = '#efe2c4';
       g.fillRect(0, gy, W, 2);
-      g.fillStyle = '#5d5480';
+      g.fillStyle = '#b8a27c';
       g.fillRect(0, gy + 2, W, 1);
-      g.fillStyle = '#221a33';
-      g.fillRect(0, gy + 3, W, H - gy - 3);
-      g.fillStyle = '#4a4166';
       const off = Math.round(W / 2 - game.cam.x);
-      for (let x = (((off % 16) + 16) % 16) - 16; x < W; x += 16) g.fillRect(x, gy + 14, 8, 1);
+      for (let x = (((off % 16) + 16) % 16) - 16; x < W; x += 16) {
+        for (let y = gy + 3; y < H; y += 8) g.drawImage(this.cobbles, x, y);
+      }
     }
   }
 
   drawClouds(game, alt) {
-    const a = clamp(1 - (alt - 30) / 20, 0, 1);
+    const a = clamp(1 - (alt - 38) / 16, 0, 1);
     if (!a) return;
     const { g, W, H } = this;
-    g.globalAlpha = 0.85 * a;
+    g.globalAlpha = 0.9 * a;
     for (const c of this.clouds) {
       const y = Math.round((c.y - game.cam.y) * 0.6);
       if (y > H || y + c.sprite.height < 0) continue;
@@ -300,7 +312,7 @@ export class Renderer {
 
   // A dashed line and a pennant at the height of your best tower.
   drawRecord(game, oy) {
-    if (game.state === 'title' || game.record < 3 || game.recordBroken) return;
+    if (game.state === 'title' || game.state === 'over' || game.record < 3 || game.recordBroken) return;
     const { g, W, H } = this;
     const y = oy - (game.record + 1) * BH;
     if (y < 8 || y > H) return;
@@ -483,10 +495,17 @@ export class Renderer {
 
   // --- HUD and screens --------------------------------------------------------
 
-  drawCardIcon(card, x, y, scale = 1) {
+  // Draws a blessing icon in a 14x14 cell (times scale); bottom = true sits it
+  // on the cell's bottom edge so a row of differently sized icons lines up.
+  drawCardIcon(card, x, y, scale = 1, bottom = false) {
     const icon = cardIcon(card.id);
-    if (icon) this.g.drawImage(icon, x, y, icon.width * scale, icon.height * scale);
-    else drawText(this.g, card.glyph, x + 7 * scale, y + 4 * scale, { scale, color: PAL.gold, outline: INK, align: 'center' });
+    const cell = 14 * scale;
+    if (icon) {
+      const h = icon.height * scale;
+      this.g.drawImage(icon, x, bottom ? y + cell - h : y + Math.round((cell - h) / 2), icon.width * scale, h);
+    } else {
+      drawText(this.g, card.glyph, x + cell / 2, y + cell - 9 * scale, { scale, color: PAL.gold, outline: INK, align: 'center' });
+    }
   }
 
   drawHud(game) {
@@ -499,7 +518,7 @@ export class Renderer {
     for (const card of CARDS) {
       const n = game.owned[card.id];
       if (!n) continue;
-      this.drawCardIcon(card, bx, 34);
+      this.drawCardIcon(card, bx, 34, 1, true);
       if (n > 1) drawText(g, n, bx + 13, 41, { color: PAL.cream, outline: INK });
       bx += n > 1 ? 21 : 15;
     }
@@ -547,17 +566,17 @@ export class Renderer {
     const { g, W } = this;
     const n = game.nonna;
     const x = 4;
-    const y = this.H - 27 - Math.round(Math.sin(n.bob * Math.PI) * 2);
+    const y = this.H - PORTRAIT - 5 - Math.round(Math.sin(n.bob * Math.PI));
     g.fillStyle = INK;
-    g.fillRect(x + 1, y + 23, 20, 2);
-    box(g, x, y, 22, 22, MOOD_BG[n.mood] || MOOD_BG.neutral);
-    g.drawImage(nonnaFace(n.face), x + 3, y + 5);
+    g.fillRect(x + 1, y + PORTRAIT + 1, PORTRAIT - 2, 2);
+    box(g, x, y, PORTRAIT, PORTRAIT, PORTRAIT_BG);
+    g.drawImage(nonnaFace(n.face), x + 3, y + PORTRAIT - 20);
 
     if (n.textT <= 0) return;
     const tw = textWidth(n.text);
-    const bw = Math.min(tw + 8, W - x - 34);
-    const bx = x + 28;
-    const by = y + 4;
+    const bw = Math.min(tw + 8, W - x - 40);
+    const bx = x + PORTRAIT + 6;
+    const by = y + 7;
     box(g, bx, by, bw, 13, PAL.cream);
     g.fillStyle = INK; // tail pointing at Nonna
     g.fillRect(bx - 3, by + 7, 2, 1);
@@ -599,14 +618,14 @@ export class Renderer {
     });
     drawText(g, 'LA TORRETTA CHE DONDOLA', W / 2, y0 + 46, { color: PAL.cream, outline: INK, align: 'center' });
 
-    if (Math.floor(t * 2.5) % 2 === 0) {
-      drawText(g, 'TAP TO START', W / 2, y0 + 128, { color: PAL.cream, outline: INK, shadow: INK, align: 'center' });
-    }
     const best = game.save.best || 0;
     if (best) {
-      drawText(g, `BEST ${best}  -  ${game.save.bestFloors || 0} FLOORS`, W / 2, y0 + 144, {
+      drawText(g, `BEST ${best}  -  ${game.save.bestFloors || 0} FLOORS`, W / 2, y0 + 128, {
         color: PAL.dim, outline: INK, align: 'center',
       });
+    }
+    if (Math.floor(t * 2.5) % 2 === 0) {
+      drawText(g, 'TAP TO START', W / 2, y0 + 144, { color: PAL.cream, outline: INK, shadow: INK, align: 'center' });
     }
   }
 
@@ -686,7 +705,7 @@ export class Renderer {
 
   // Keep the bottom-left corner clear for Nonna on narrow screens.
   resultReserve() {
-    return this.W < 300 ? 32 : 6;
+    return this.W < 300 ? PORTRAIT + 10 : 6;
   }
 
   // Size of the results card for this screen: the photo grows to fill the room.

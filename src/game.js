@@ -639,7 +639,7 @@ export class Game {
     this.onFinish?.(this.summary);
     this.sound.music(false);
     this.sound.gameOver();
-    this.nonna.say(this.newBest ? 'overBest' : 'over', { mood: this.newBest ? 'ecstatic' : 'worried', force: true });
+    this.nonna.say(this.newBest ? 'overBest' : 'over', { mood: this.newBest ? 'ecstatic' : 'sad', force: true });
   }
 
   updateCamera(dt) {

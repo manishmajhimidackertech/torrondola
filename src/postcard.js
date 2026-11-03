@@ -20,37 +20,54 @@ const AIRMAIL = ['#d1495b', PAPER, '#3f6fd8', PAPER];
 const LABEL = '#8a7fa6';
 const RULE = '#d6cbe0';
 const RED = '#d1495b';
+// The sky at the top of your tower, as in the game.
 const SKIES = [
-  ['#2c1a4f', '#5a2f7d', '#8e3f7e', '#d1708a'], // dusk
+  ['#5297dd', '#71abe5', '#95c2ee'], // day
+  ['#5b3a7a', '#cf5c74', '#f6b468'], // sunset
   ['#0c1430', '#1b2d63', '#2f4d94'], // night
   ['#06040f', '#170f38', '#2f185c'], // space
 ];
+const skyFor = (floors) => SKIES[Math.min(SKIES.length - 1, Math.floor(floors / 22))];
+
+// A rolling ridge line across the photo, for the hills behind the tower.
+function hills(g, x, w, base, amp, color, r) {
+  const ph = r() * 6.28;
+  const cyc = 1 + r() * 2;
+  g.fillStyle = color;
+  for (let i = 0; i < w; i++) {
+    const top = Math.round(base - amp * (0.6 + 0.4 * Math.sin((i / w) * Math.PI * 2 * cyc + ph)));
+    g.fillRect(x + i, top, 1, base - top + 1);
+  }
+}
 
 function photo(g, s, x, y, w, h, r) {
   g.fillStyle = INK;
   g.fillRect(x - 1, y - 1, w + 2, h + 2);
   const groundY = y + h - 8;
-  const sky = SKIES[s.floors >= 50 ? 2 : s.floors >= 25 ? 1 : 0];
-  ditherGradient(g, x, y, w, groundY - y, sky);
-  if (s.floors >= 25) {
+  ditherGradient(g, x, y, w, groundY - y, skyFor(s.floors));
+  if (s.floors >= 44) {
     g.fillStyle = PAL.cream;
     for (let i = 0; i < 24; i++) g.fillRect(x + Math.floor(r() * w), y + Math.floor(r() * (h * 0.6)), 1, 1);
     g.fillStyle = '#f4ecd8';
     g.fillRect(x + w - 15, y + 5, 4, 6);
     g.fillRect(x + w - 16, y + 6, 6, 4);
   }
-  // distant city along the ground
-  g.fillStyle = '#160c26';
-  for (let bx = x; bx < x + w; ) {
-    const bw = 3 + Math.floor(r() * 6);
-    const bh = 3 + Math.floor(r() * 14);
-    g.fillRect(bx, groundY - bh, Math.min(bw, x + w - bx), bh);
-    bx += bw;
+  // the countryside: far hills, near hills with a few cypresses, the piazza
+  hills(g, x, w, groundY - 1, 16, '#8cc2a2', r);
+  hills(g, x, w, groundY - 1, 8, '#5e9e57', r);
+  g.fillStyle = '#2f6b3f';
+  for (let i = 0; i < 5; i++) {
+    const tx = x + 3 + Math.floor(r() * (w - 6));
+    const th = 5 + Math.floor(r() * 5);
+    g.fillRect(tx, groundY - th, 1, th);
+    g.fillRect(tx - 1, groundY - th + 2, 3, th - 2);
   }
-  g.fillStyle = '#9a8fb8';
+  g.fillStyle = '#efe2c4';
   g.fillRect(x, groundY, w, 1);
-  g.fillStyle = '#221a33';
+  g.fillStyle = '#c9b48e';
   g.fillRect(x, groundY + 1, w, y + h - groundY - 1);
+  g.fillStyle = '#a8936e';
+  for (let i = 0; i < w; i += 4) g.fillRect(x + i + ((i >> 2) % 2) * 2, groundY + 3, 2, 1);
 
   // The tower, squeezed to fit: up to 7px per floor, at least 1px.
   const blocks = s.blocks;
@@ -154,11 +171,13 @@ export function renderPostcard(s, { width = CARD_W, photoH = 110 } = {}) {
   drawText(g, 'BLESSINGS', 10, y + 5, { color: LABEL });
   const owned = CARDS.filter((card) => s.owned[card.id]);
   if (!owned.length) drawText(g, 'NONE THIS TIME', 10, y + 18, { color: INK });
+  // icons of different heights all sit on one baseline
+  const baseline = y + 28;
   owned.forEach((card, i) => {
     const icon = cardIcon(card.id);
     const ix = 9 + i * 16;
-    if (icon) g.drawImage(icon, ix, y + 14);
-    else drawText(g, card.glyph, ix + 7, y + 18, { color: PAL.gold, outline: INK, align: 'center' });
+    if (icon) g.drawImage(icon, ix, baseline - icon.height);
+    else drawText(g, card.glyph, ix + 7, baseline - 9, { color: PAL.gold, outline: INK, align: 'center' });
   });
 
   y += 34;

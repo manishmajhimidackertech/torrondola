@@ -381,24 +381,98 @@ export const pauseIcon = maskSprite(['cc.cc', 'cc.cc', 'cc.cc', 'cc.cc', 'cc.cc'
 
 // --- city and sky ------------------------------------------------------------
 
-// A strip of city silhouettes, drawn bottom-aligned into a width x height canvas.
-export function makeSkyline(width, height, seed, body, windowColor, windowChance, minH, maxH) {
+// --- countryside --------------------------------------------------------------
+
+function cypress(g, x, base, h, body, light) {
+  for (let j = 0; j < h; j++) {
+    const w = j < 2 ? 1 : j < 5 ? 2 : j > h - 3 ? 3 : 4;
+    const left = x - Math.floor(w / 2);
+    rect(g, body, left, base - h + j, w, 1);
+    if (w > 2 && j % 3 === 0) rect(g, light, left, base - h + j, 1, 1);
+  }
+}
+
+function olive(g, x, base, leaf, shade) {
+  rect(g, '#7a5a3a', x, base - 3, 1, 3);
+  rect(g, leaf, x - 3, base - 7, 7, 3);
+  rect(g, leaf, x - 2, base - 8, 5, 1);
+  rect(g, shade, x - 3, base - 5, 7, 1);
+}
+
+function farmhouse(g, x, base, r, walls, roof) {
+  const w = 9 + Math.floor(r() * 6);
+  const h = 6 + Math.floor(r() * 3);
+  rect(g, walls[0], x, base - h, w, h);
+  rect(g, walls[1], x + w - 2, base - h, 2, h);
+  for (let j = 0; j < 3; j++) rect(g, roof, x - 1 + j, base - h - 1 - j, w + 2 - j * 2, 1);
+  rect(g, '#5a4a3a', x + 2, base - h + 2, 2, 2);
+  if (w > 11) rect(g, '#5a4a3a', x + w - 5, base - h + 2, 2, 2);
+  rect(g, '#6b4a30', x + Math.floor(w / 2), base - 3, 2, 3);
+}
+
+// A hill town: a cluster of little houses around a bell tower (campanile).
+function hillTown(g, x, base, r, walls, roof) {
+  const tower = x + 6 + Math.floor(r() * 8);
+  for (let i = 0; i < 5; i++) {
+    const hx = x + i * 5 + Math.floor(r() * 2);
+    const hh = 3 + Math.floor(r() * 4);
+    rect(g, walls, hx, base - hh, 5, hh);
+    rect(g, roof, hx, base - hh - 1, 5, 1);
+  }
+  rect(g, walls, tower, base - 14, 3, 14);
+  rect(g, '#5a4a3a', tower + 1, base - 12, 1, 2);
+  rect(g, roof, tower, base - 15, 3, 1);
+  rect(g, roof, tower + 1, base - 16, 1, 1);
+}
+
+// A strip of rolling hills, bottom-aligned in a width x height canvas. The ridge
+// is a sum of sines with whole cycles per strip, so the strip tiles seamlessly.
+// Cypresses, olive trees, farmhouses and hill towns sit along the ridge.
+export function makeHills(width, height, seed, o) {
   const [c, g] = makeCanvas(width, height);
   const r = rng(seed);
-  let x = 0;
-  while (x < width) {
-    const w = 10 + Math.floor(r() * 26);
-    const h = minH + Math.floor(r() * (maxH - minH));
-    const top = height - h;
-    rect(g, body, x, top, w, h);
-    const roof = r();
-    if (roof < 0.25) rect(g, body, x + (w >> 1), top - 7, 1, 7);
-    else if (roof < 0.5) rect(g, body, x + 3, top - 3, w - 6, 3);
-    g.fillStyle = windowColor;
-    for (let wy = top + 4; wy < height - 4; wy += 4) {
-      for (let wx = x + 2; wx < x + w - 2; wx += 3) if (r() < windowChance) g.fillRect(wx, wy, 1, 2);
+  const waves = o.waves.map(([amp, cycles]) => [amp, cycles, r() * Math.PI * 2]);
+  const ridge = (x) =>
+    Math.round(o.base + waves.reduce((s, [amp, cyc, ph]) => s + amp * Math.sin((x / width) * Math.PI * 2 * cyc + ph), 0));
+  for (let x = 0; x < width; x++) {
+    const top = ridge(x);
+    rect(g, o.hill, x, top, 1, height - top);
+    rect(g, o.rim, x, top, 1, 1);
+    // vineyard rows following the slope
+    if (o.rows && Math.floor(x / 40) % 3 === 1) {
+      for (let k = 1; k <= 4; k++) if ((x + k) % 2) rect(g, o.rows, x, top + 3 + k * 4, 1, 1);
     }
-    x += w + (r() < 0.3 ? 1 + Math.floor(r() * 4) : 0);
+  }
+  for (let x = 6; x < width - 20; ) {
+    const base = ridge(x) + 2;
+    const roll = r();
+    if (roll < o.town) {
+      hillTown(g, x, base + 1, r, o.houseWalls[0], o.roof);
+      x += 34;
+    } else if (roll < o.town + o.house) {
+      farmhouse(g, x, base + 1, r, o.houseWalls, o.roof);
+      x += 18 + Math.floor(r() * 10);
+    } else if (roll < o.town + o.house + o.cypress) {
+      const n = 1 + Math.floor(r() * 4); // cypresses grow in little rows
+      for (let i = 0; i < n; i++) cypress(g, x + i * 4, ridge(x + i * 4) + 2, o.treeH[0] + Math.floor(r() * o.treeH[1]), o.tree, o.treeLight);
+      x += n * 4 + 6 + Math.floor(r() * 10);
+    } else if (roll < o.town + o.house + o.cypress + o.olive) {
+      olive(g, x, base, o.olives[0], o.olives[1]);
+      x += 10 + Math.floor(r() * 8);
+    } else {
+      x += 8 + Math.floor(r() * 14);
+    }
+  }
+  return c;
+}
+
+// Cobblestones for the piazza the tower stands on, as a repeating tile.
+export function makeCobbles() {
+  const [c, g] = makeCanvas(16, 8);
+  rect(g, '#a8936e', 0, 0, 16, 8);
+  for (const [x, y] of [[0, 0], [8, 0], [4, 4], [12, 4], [-4, 4]]) {
+    rect(g, '#c9b48e', x + 1, y + 1, 6, 2);
+    rect(g, '#dccaa6', x + 1, y + 1, 5, 1);
   }
   return c;
 }
@@ -426,7 +500,7 @@ export function makeCloud(seed) {
       if (!inside(x + 0.5, y + 0.5)) continue;
       const shade = y >= h - 2 || !inside(x + 0.5, y + 2.5);
       const lit = !inside(x + 0.5, y - 1.5) && !shade;
-      rect(g, shade ? '#b9a6d6' : lit ? '#fbf3ff' : '#e9dcf5', x, y, 1, 1);
+      rect(g, shade ? '#cfe0f0' : lit ? '#ffffff' : '#f2f8fd', x, y, 1, 1);
     }
   }
   return c;

@@ -3,62 +3,158 @@ import { INK, PAL, makeCanvas, maskSprite, mirrored, withOutline } from './sprit
 
 // --- Nonna ---------------------------------------------------------------------
 
-const FACE_TOP = [
-  '......hhhh......',
-  '.....hHHHHh.....',
-  '....hhhhhhhh....',
-  '...hhhhhhhhhh...',
-  '..hhhsssssshhh..',
-  '..hhsssssssshh..',
-  '.hsGGGGssGGGGsh.',
-];
-const FACE_BOTTOM = [
-  '...ssssssssss...',
-  '....cssssssc....',
-  '..cccccCCccccc..',
-  '.cccccccccccccc.',
-];
-const EYES = {
-  open: '.hsGleGssGleGsh.',
-  closed: '.hsGeeGssGeeGsh.',
-  wide: '.hsGelGssGleGsh.',
+const NC = {
+  hair: '#d8d2e6', hairShade: '#b3abc8', hairHi: '#f6f2fb',
+  skin: '#f2c29b', skinShade: '#e2a882', lens: '#fbe3cf', frame: '#c9a46a',
+  eye: '#3a2430', white: '#ffffff', brow: '#9c93b2', cheek: '#f4b4a4', blush: '#ee8c8c',
+  mouth: '#8f2d3b', tongue: '#d4525e', shawl: PAL.plum, shawlDark: '#5e2146', lace: '#fff4dc', brooch: PAL.gold,
 };
-const MOUTHS = {
-  neutral: ['..ssssssssssss..', '...sssmmmmsss...'],
-  happy: ['..sssmssssmsss..', '...sssmmmmsss...'],
-  ecstatic: ['..sssmmmmmmsss..', '...sssmrrmsss...'],
-  worried: ['..ssssmmmmssss..', '...sssmssmsss...'],
-  shocked: ['..sssssmmsssss..', '...ssssmmssss...'],
-};
-const FACES = {
-  neutral: ['open', 'neutral'],
-  blink: ['closed', 'neutral'],
-  happy: ['closed', 'happy'],
-  ecstatic: ['closed', 'ecstatic'],
-  worried: ['open', 'worried'],
-  shocked: ['wide', 'shocked'],
-};
-const FACE_COLORS = {
-  h: '#d8d2e6', H: '#f6f2fb', s: '#f2c29b', R: '#ef8f8f', G: '#b08a4a', l: '#eef6ff', e: '#2b1b33',
-  m: '#8f2d3b', r: PAL.red, c: PAL.plum, C: PAL.gold,
-};
+
+// Her face is assembled from parts so expressions can change one feature at a
+// time. parts: { eyes: open|half|closed|happy|wide, look: -1|0|1,
+// brows: relaxed|raised|worried, mouth: flat|smile1|smile2|laugh|talk|o1|o2|frown1|frown2, blush }
+function drawNonnaFace({ eyes, look, brows, mouth, blush }) {
+  const [c, g] = makeCanvas(20, 20);
+  const P = (col, x, y, w = 1, h = 1) => {
+    g.fillStyle = col;
+    g.fillRect(x, y, w, h);
+  };
+  // shawl, lace collar and brooch
+  P(NC.shawl, 3, 16, 14, 1);
+  P(NC.shawl, 1, 17, 18, 1);
+  P(NC.shawl, 0, 18, 20, 2);
+  P(NC.shawlDark, 4, 18, 1, 2);
+  P(NC.shawlDark, 15, 18, 1, 2);
+  P(NC.lace, 6, 16, 8, 1);
+  P(NC.lace, 7, 17, 1, 1);
+  P(NC.lace, 12, 17, 1, 1);
+  P(NC.brooch, 9, 17, 2, 1);
+  // face, ears, neck
+  P(NC.skin, 6, 4, 8, 1);
+  P(NC.skin, 4, 5, 12, 9);
+  P(NC.skin, 5, 14, 10, 1);
+  P(NC.skinShade, 7, 15, 6, 1);
+  P(NC.skinShade, 3, 9, 1, 2);
+  P(NC.skinShade, 16, 9, 1, 2);
+  P(NC.skinShade, 15, 11, 1, 2);
+  // silver hair: bun on top, soft curls down the sides
+  P(NC.hair, 7, 0, 6, 1);
+  P(NC.hair, 6, 1, 8, 2);
+  P(NC.hairHi, 8, 1, 3, 1);
+  P(NC.hair, 4, 3, 12, 1);
+  P(NC.hair, 3, 4, 4, 1);
+  P(NC.hair, 13, 4, 4, 1);
+  P(NC.hair, 3, 5, 2, 1);
+  P(NC.hair, 15, 5, 2, 1);
+  P(NC.hair, 2, 6, 2, 4);
+  P(NC.hair, 16, 6, 2, 4);
+  for (const [x, y] of [[9, 3], [6, 2], [13, 2], [4, 4], [15, 4], [2, 7], [17, 8], [3, 9], [16, 6]]) P(NC.hairShade, x, y);
+  // eyebrows
+  if (brows === 'raised') {
+    P(NC.brow, 5, 5, 3, 1);
+    P(NC.brow, 12, 5, 3, 1);
+  } else if (brows === 'worried') {
+    P(NC.brow, 5, 6, 2, 1);
+    P(NC.brow, 7, 5, 1, 1);
+    P(NC.brow, 12, 5, 1, 1);
+    P(NC.brow, 13, 6, 2, 1);
+  } else {
+    P(NC.brow, 5, 6, 3, 1);
+    P(NC.brow, 12, 6, 3, 1);
+  }
+  // thin, round gold reading glasses
+  for (const x0 of [4, 11]) {
+    P(NC.frame, x0 + 1, 7, 3, 1);
+    P(NC.frame, x0 + 1, 10, 3, 1);
+    P(NC.frame, x0, 8, 1, 2);
+    P(NC.frame, x0 + 4, 8, 1, 2);
+    P(NC.lens, x0 + 1, 8, 3, 2);
+  }
+  P(NC.frame, 9, 8, 2, 1);
+  // eyes behind the lenses
+  for (const x0 of [5, 12]) {
+    if (eyes === 'open') P(NC.eye, x0 + 1 + look, 8, 1, 2);
+    else if (eyes === 'wide') {
+      P(NC.white, x0, 8, 3, 2);
+      P(NC.eye, x0 + 1 + look, 8, 1, 2);
+    } else if (eyes === 'half') {
+      P(NC.skinShade, x0, 8, 3, 1);
+      P(NC.eye, x0 + 1, 9, 1, 1);
+    } else if (eyes === 'closed') {
+      P(NC.eye, x0, 9, 3, 1);
+    } else if (eyes === 'happy') {
+      P(NC.eye, x0 + 1, 8, 1, 1);
+      P(NC.eye, x0, 9, 1, 1);
+      P(NC.eye, x0 + 2, 9, 1, 1);
+    }
+  }
+  // nose, rosy cheeks, smile lines
+  P(NC.skinShade, 9, 11, 2, 1);
+  P(blush ? NC.blush : NC.cheek, 5, 11, 2, 1);
+  P(blush ? NC.blush : NC.cheek, 13, 11, 2, 1);
+  P(NC.skinShade, 6, 13, 1, 1);
+  P(NC.skinShade, 13, 13, 1, 1);
+  // mouth
+  const M = NC.mouth;
+  switch (mouth) {
+    case 'smile1':
+      P(M, 8, 12);
+      P(M, 11, 12);
+      P(M, 9, 13, 2, 1);
+      break;
+    case 'smile2':
+      P(M, 7, 12);
+      P(M, 12, 12);
+      P(M, 8, 13, 4, 1);
+      break;
+    case 'laugh':
+      P(M, 7, 12);
+      P(NC.white, 8, 12, 4, 1);
+      P(M, 12, 12);
+      P(M, 8, 13);
+      P(NC.tongue, 9, 13, 2, 1);
+      P(M, 11, 13);
+      P(M, 9, 14, 2, 1);
+      break;
+    case 'talk':
+      P(M, 9, 12, 2, 1);
+      P(NC.tongue, 9, 13, 2, 1);
+      break;
+    case 'o1':
+      P(M, 9, 12, 2, 2);
+      break;
+    case 'o2':
+      P(M, 9, 12, 2, 1);
+      P(M, 8, 13);
+      P(NC.tongue, 9, 13, 2, 1);
+      P(M, 11, 13);
+      P(M, 9, 14, 2, 1);
+      break;
+    case 'frown1':
+      P(M, 9, 12, 2, 1);
+      P(M, 8, 13);
+      P(M, 11, 13);
+      break;
+    case 'frown2':
+      P(M, 8, 12, 4, 1);
+      P(M, 7, 13);
+      P(M, 12, 13);
+      break;
+    default: // flat
+      P(M, 8, 13, 4, 1);
+  }
+  return c;
+}
 
 const faceCache = new Map();
 
-export function nonnaFace(mood) {
-  let c = faceCache.get(mood);
-  if (c) return c;
-  const [eyes, mouth] = FACES[mood] || FACES.neutral;
-  const rows = [
-    ...FACE_TOP,
-    EYES[eyes],
-    '.hsGGGGssGGGGsh.',
-    '.hsRssssssssRsh.',
-    ...MOUTHS[mouth],
-    ...FACE_BOTTOM,
-  ];
-  c = maskSprite(rows, FACE_COLORS, null);
-  faceCache.set(mood, c);
+export function nonnaFace(parts) {
+  const key = `${parts.eyes}:${parts.look}:${parts.brows}:${parts.mouth}:${parts.blush ? 1 : 0}`;
+  let c = faceCache.get(key);
+  if (!c) {
+    c = drawNonnaFace(parts);
+    faceCache.set(key, c);
+  }
   return c;
 }
 
