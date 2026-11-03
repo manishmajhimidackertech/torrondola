@@ -2,14 +2,20 @@
 
 *La torretta che dondola*: the little swinging tower.
 
-A pixel-art tower stacker that runs as a Progressive Web App. A crane swings each floor of the building on a rope. You drop it and try to land it straight on top of the floor below. Off-centre landings make the tower sway, and if the top swings too far the tower comes down (*crollo!*). Perfect landings score combo bonuses and calm the sway.
+A pixel-art tower stacker that runs as a Progressive Web App. A crane swings each floor of an Italian palazzo on a rope. You drop it and try to land it straight on top of the floor below. Off-centre landings make the tower sway, and if the top swings too far the tower comes down (*crollo!*). Perfect landings build combos and calm the sway.
+
+Nonna watches from the corner and has opinions about every drop.
 
 The name blends *torre* (tower) and *dondola* (it swings); *-ola* is also an Italian diminutive.
 
 ## How to play
 
-- **Tap**, **Space**, **Enter** or **↓**: drop the block
-- **M**, or the speaker icon in the bottom-left corner: mute
+| Input | Action |
+|---|---|
+| **Tap**, **Space**, **Enter** or **↓** | Drop the block |
+| **← / →** or **1 / 2 / 3**, then **Space** | Choose a blessing card |
+| **P** / **Esc**, or the pause icon | Pause |
+| **M**, or the speaker icon | Mute |
 
 | Landing | Offset from the block below | Effect |
 |---|---|---|
@@ -18,7 +24,47 @@ The name blends *torre* (tower) and *dondola* (it swings); *-ola* is also an Ita
 | **OK** | ≤ 24 px (half a block) | 10 points, the tower gets a shove |
 | **Miss** | more than half a block | The block tips off and you lose a life |
 
-You start with 3 lives. The game ends when you run out of lives or when the tower topples. The **SWAY** meter shows how close the tower is to toppling. Every 8 floors the crane swings wider and faster, and every 10 floors the building changes colour. The sky also changes as you climb, from dusk to night to space.
+You start with 3 lives. The game ends when you run out of lives or when the tower topples. The **SWAY** meter shows how close the tower is to toppling.
+
+### What happens on the way up
+
+- **Combos.** Each perfect drop in a row gets a bigger callout: *Perfetto, Bravo, Bravissimo, Magnifico, Stupendo, Fantastico, Leggendario.*
+- **Blessings (*benedizioni*).** Every 10 floors Nonna deals three cards, Balatro-style, and you keep one. Rarer cards are stronger:
+
+  | Card | Effect |
+  |---|---|
+  | ESPRESSO | The crane swings 12% slower (stacks ×3) |
+  | ANCORA | The tower stops swaying twice as fast (×2) |
+  | GATTO | +1 life, up to 5 |
+  | CEMENTO | The tower can lean 30% further before toppling (×2) |
+  | CALAMITA | The perfect zone grows by 2 px (×2) |
+  | PAZIENZA | Good drops no longer break your combo |
+  | PIUMA | Blocks fall straight down, ignoring the swing |
+  | DOPPIO | Perfect drops score ×2 (×3) |
+  | AZZARDO | The crane is 20% faster, but all points ×2 (×2) |
+
+- **Golden floors.** About one floor in fourteen arrives gilded. Landing one is worth ×3 points.
+- **Your record.** A pennant marks the height of your best tower. Climb past it for *Nuovo record!* and confetti.
+- **Wind (*vento*).** From floor 25, gusts are announced in the HUD, then push falling blocks and the tower sideways.
+- **The sky.** It changes from dusk to night to space. On the way up you pass clouds, a tricolore hot-air balloon, the moon and satellites, and up high, the occasional UFO. Pigeons land on the roof and flee from the next floor.
+- **The palazzo.** Floors come with shutters (*persiane*), flower boxes, balconies with geraniums, arched windows and laundry lines. The building changes colour every 10 floors.
+- **The postcard.** When the run ends you get a postcard, *Saluti da Torrondola*, with a picture of your tower and your stats. Share it (phones) or save it as a PNG (desktop).
+
+### A little Italian
+
+| | |
+|---|---|
+| *Ciao, tesoro!* | Hi, sweetheart! |
+| *Forza! / Andiamo!* | Come on! / Let's go! |
+| *Piano piano...* | Easy, slowly... |
+| *Attenzione! / Occhio!* | Careful! / Watch out! |
+| *Mamma mia!* | Good grief! |
+| *Che vento!* | What a wind! |
+| *Via, piccione!* | Shoo, pigeon! |
+| *Crollo!* | Collapse! |
+| *Saluti da... / Baci, Nonna* | Greetings from... / Kisses, Grandma |
+| *Piani / Punti* | Floors / Points |
+| *Riprova / Condividi / Salva* | Retry / Share / Save |
 
 ## Running it
 
@@ -43,19 +89,24 @@ After deploying, open the site on a phone and choose **Add to Home Screen** or *
 index.html              page shell, PWA meta tags
 manifest.webmanifest    install metadata
 sw.js                   service worker: precache + stale-while-revalidate
-src/config.js           every tuning number (physics, difficulty, scoring)
+src/config.js           every tuning number (physics, difficulty, scoring, wind)
 src/game.js             rules and simulation, no drawing
-src/render.js           low-res canvas renderer, swirl background, HUD, CRT pass
-src/sprites.js          procedural pixel art (floors, hook, city, clouds, icons)
+src/cards.js            blessing cards and what they change
+src/nonna.js            Nonna's moods and lines
+src/render.js           low-res canvas renderer: sky, tower, HUD, menus, CRT pass
+src/postcard.js         the end-of-run postcard and sharing it
+src/sprites.js          procedural pixel art: floors, city, clouds, UI icons
+src/art.js              characters and props: Nonna, pigeons, balloon, moon, card icons
+src/draw.js             small shared pixel-drawing helpers
 src/font.js             5x7 bitmap font
-src/audio.js            WebAudio chiptune SFX and a looping tarantella
-src/storage.js          best score / mute setting in localStorage
+src/audio.js            WebAudio chiptune SFX and a layered, looping tarantella
+src/storage.js          best score / best height / mute setting in localStorage
 tools/make-icons.mjs    draws the app icon and writes the PNGs in icons/
 ```
 
 The game renders into a small virtual canvas, about 180 px wide on phones. It then scales up by the largest whole number that fits the screen, so pixels always stay square and sharp.
 
-- To change difficulty, edit `src/config.js`.
+- To change difficulty, edit `src/config.js`. Card strengths are in `computeMods` in `src/cards.js`.
 - After changing the icon art, run `node tools/make-icons.mjs`.
 - If you add or rename files, list them in `ASSETS` in `sw.js` and bump `VERSION`.
 

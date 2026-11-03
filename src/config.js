@@ -42,6 +42,20 @@ export const CFG = {
   momentumKick: 0.12, // share of the block's sideways speed pushed into the tower
   perfectSteady: 0.4, // a perfect drop keeps only this share of the sway
   toppleAt: 46, // top displacement in pixels that brings the tower down
+
+  maxLives: 5, // the GATTO blessing can raise lives up to this
+  goldFrom: 4, // first floor that can arrive as a golden floor
+  goldChance: 0.07,
+  goldMult: 3, // points for landing a golden floor
+
+  blessingEvery: 10, // floors between blessing card picks
+
+  // Gusts start partway up: telegraphed, then they push falling blocks and the tower.
+  windFrom: 25,
+  windMax: 80, // sideways acceleration on a falling block, px/s^2
+  windTower: 0.3, // share of the push felt by the top of the tower
+
+  pigeonChance: 0.22, // chance a pigeon lands on the roof after a landing
 };
 
 // Screen y of the tower top while playing; the camera follows to keep it here.

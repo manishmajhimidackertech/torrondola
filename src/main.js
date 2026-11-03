@@ -3,6 +3,7 @@ import { Game } from './game.js';
 import { Renderer } from './render.js';
 import { Sound } from './audio.js';
 import { loadSave, writeSave } from './storage.js';
+import { canShareFiles, postcardFile, renderPostcard, sharePostcard } from './postcard.js';
 
 const canvas = document.getElementById('screen');
 const save = loadSave();
@@ -33,25 +34,61 @@ function toggleMute() {
   writeSave(save);
 }
 
+// --- the postcard ---------------------------------------------------------------
+
+let postcard = null; // { file, text } once the PNG is ready
+
+game.onFinish = (summary) => {
+  const card = renderPostcard(summary);
+  renderer.postcard = card;
+  renderer.shareLabel = 'SALVA';
+  postcard = null;
+  const text = `I built a ${summary.floors}-floor palazzo in Torrondola!`;
+  postcardFile(card).then((file) => {
+    postcard = { file, text };
+    if (canShareFiles(file)) renderer.shareLabel = 'CONDIVIDI';
+  });
+};
+
+// --- input ----------------------------------------------------------------------
+
+function virtualPoint(e) {
+  const r = canvas.getBoundingClientRect();
+  return [((e.clientX - r.left) / r.width) * renderer.W, ((e.clientY - r.top) / r.height) * renderer.H];
+}
+
+let pressedId = null;
+
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   sound.unlock();
-  const r = canvas.getBoundingClientRect();
-  const x = ((e.clientX - r.left) / r.width) * renderer.W;
-  const y = ((e.clientY - r.top) / r.height) * renderer.H;
-  if (renderer.hitMute(x, y)) toggleMute();
+  const id = renderer.hit(...virtualPoint(e));
+  pressedId = id;
+  if (id === 'share') return; // handled on pointerup, which counts as a user gesture for the share sheet
+  if (id === 'mute') toggleMute();
+  else if (id === 'pause') game.togglePause();
+  else if (id?.startsWith('card')) game.tapCard(Number(id.slice(4)));
   else game.press();
+});
+
+canvas.addEventListener('pointerup', (e) => {
+  if (pressedId === 'share' && renderer.hit(...virtualPoint(e)) === 'share' && postcard) {
+    sharePostcard(postcard.file, `${postcard.text} ${location.href}`);
+  }
+  pressedId = null;
 });
 
 const DROP_KEYS = new Set(['Space', 'Enter', 'ArrowDown', 'KeyS']);
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'KeyM') {
-    sound.unlock();
-    toggleMute();
-  } else if (DROP_KEYS.has(e.code)) {
+  if (e.repeat) return;
+  sound.unlock();
+  if (e.code === 'KeyM') toggleMute();
+  else if (e.code === 'KeyP' || e.code === 'Escape') game.togglePause();
+  else if (e.code === 'ArrowLeft' || e.code === 'KeyA') game.moveFocus(-1);
+  else if (e.code === 'ArrowRight' || e.code === 'KeyD') game.moveFocus(1);
+  else if (/^Digit[1-3]$/.test(e.code)) game.tapCard(Number(e.code.slice(5)) - 1);
+  else if (DROP_KEYS.has(e.code)) {
     e.preventDefault();
-    if (e.repeat) return;
-    sound.unlock();
     game.press();
   }
 });
@@ -59,7 +96,10 @@ window.addEventListener('keydown', (e) => {
 // Older iOS Safari only unlocks audio on touchend, not pointerdown.
 window.addEventListener('touchend', () => sound.unlock(), { passive: true });
 window.addEventListener('resize', resize);
-document.addEventListener('visibilitychange', () => sound.pause(document.hidden));
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) game.autoPause();
+  sound.pause(document.hidden);
+});
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 let last = performance.now();

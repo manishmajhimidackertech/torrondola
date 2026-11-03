@@ -1,6 +1,6 @@
 // Offline support: precache the whole game, serve from cache, refresh in the background.
 // Bump VERSION when files are added or removed so old caches get cleaned up.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = `torrondola-${VERSION}`;
 const ASSETS = [
   './',
@@ -14,6 +14,11 @@ const ASSETS = [
   './src/font.js',
   './src/audio.js',
   './src/storage.js',
+  './src/art.js',
+  './src/cards.js',
+  './src/nonna.js',
+  './src/postcard.js',
+  './src/draw.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',

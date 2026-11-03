@@ -3,8 +3,12 @@
 import { BW, BH, CFG, GAME_H } from './config.js';
 import { drawText, textWidth } from './font.js';
 import {
-  INK, PAL, hookSprite, heartFull, heartEmpty, speakerOn, speakerOff, makeSkyline, makeCloud, rng,
+  INK, PAL, hookSprite, heartFull, heartEmpty, speakerOn, speakerOff, pauseIcon, makeSkyline, makeCloud, rng,
 } from './sprites.js';
+import { balloon, cardIcon, moon, nonnaFace, pigeon, satellite, ufo } from './art.js';
+import { CARDS, RARITY } from './cards.js';
+import { BAYER, box, clamp, line, panel } from './draw.js';
+import { POSTCARD_H, POSTCARD_W } from './postcard.js';
 
 // Swirl palettes from dark to light, blended as the tower climbs: dusk, night, space.
 const THEMES = [
@@ -14,43 +18,18 @@ const THEMES = [
 ].map((t) => t.map((h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))));
 const FLOORS_PER_THEME = 25;
 
-const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
 const LOGO_COLORS = [PAL.red, PAL.gold, PAL.green, PAL.blue, PAL.purple];
 const ROPE = '#f2e3c6';
 const ROPE_SHADE = '#6e4f63';
 const CITY_W = 720;
 const FAR_CITY = '#160c26';
 const NEAR_CITY = '#0f0a1c';
+const DIM = 'rgba(16,8,28,0.62)';
+const MOOD_BG = {
+  neutral: '#3d2e5c', happy: '#2f7d5b', ecstatic: '#b07a22', worried: '#5c3d6e', shocked: '#9e2f3a',
+};
 
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-
-function line(g, x0, y0, x1, y1, color) {
-  g.fillStyle = color;
-  const dx = Math.abs(x1 - x0);
-  const dy = -Math.abs(y1 - y0);
-  const sx = x0 < x1 ? 1 : -1;
-  const sy = y0 < y1 ? 1 : -1;
-  let err = dx + dy;
-  for (;;) {
-    if (y0 >= 0) g.fillRect(x0, y0, 1, 1);
-    if (x0 === x1 && y0 === y1) break;
-    const e2 = 2 * err;
-    if (e2 >= dy) { err += dy; x0 += sx; }
-    if (e2 <= dx) { err += dx; y0 += sy; }
-  }
-}
-
-function panel(g, x, y, w, h) {
-  g.fillStyle = INK;
-  g.fillRect(x + 1, y + h, w - 2, 2); // drop shadow
-  g.fillRect(x + 1, y - 1, w - 2, h + 2);
-  g.fillRect(x - 1, y + 1, w + 2, h - 2);
-  g.fillRect(x, y, w, h);
-  g.fillStyle = '#3d2e5c';
-  g.fillRect(x + 1, y + 1, w - 2, h - 2);
-  g.fillStyle = '#241a3a';
-  g.fillRect(x + 1, y + 2, w - 2, h - 3);
-}
+const easeOutBack = (k) => 1 + 2.2 * (k - 1) ** 3 + 1.2 * (k - 1) ** 2;
 
 export class Renderer {
   constructor(canvas) {
@@ -60,7 +39,11 @@ export class Renderer {
     this.bg = document.createElement('canvas');
     this.crt = document.createElement('canvas');
     this.frame = 0;
-    this.muteRect = { x: 0, y: 0, w: 0, h: 0 };
+    this.buttons = [];
+    this.streaks = [];
+    this.lastTime = 0;
+    this.postcard = null; // canvas from postcard.js, set by main.js at game over
+    this.shareLabel = 'SALVA';
 
     this.farCity = makeSkyline(CITY_W, 130, 7, FAR_CITY, '#4a2f6a', 0.1, 34, 120);
     this.nearCity = makeSkyline(CITY_W, 80, 21, NEAR_CITY, '#ffd56b', 0.1, 14, 72);
@@ -122,13 +105,15 @@ export class Renderer {
     vg.addColorStop(1, 'rgba(10,0,20,0.45)');
     c.fillStyle = vg;
     c.fillRect(0, 0, cw, ch);
-
-    this.muteRect = { x: 0, y: H - 22, w: 24, h: 22 };
   }
 
-  hitMute(x, y) {
-    const r = this.muteRect;
-    return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+  // Id of the on-screen button under a virtual-pixel position, if any.
+  hit(x, y) {
+    for (let i = this.buttons.length - 1; i >= 0; i--) {
+      const b = this.buttons[i];
+      if (x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) return b.id;
+    }
+    return null;
   }
 
   // How many floors the camera has climbed since the start of the game.
@@ -137,8 +122,11 @@ export class Renderer {
   }
 
   draw(game, sound) {
-    const { g, W, H } = this;
+    const { g, W } = this;
     this.frame++;
+    this.buttons = [];
+    const dt = clamp(game.time - this.lastTime, 0, 0.05);
+    this.lastTime = game.time;
     const shx = game.shake ? Math.round((Math.random() * 2 - 1) * game.shake) : 0;
     const shy = game.shake ? Math.round((Math.random() * 2 - 1) * game.shake) : 0;
     // world -> screen: sx = x + ox, sy = y + oy
@@ -148,19 +136,31 @@ export class Renderer {
 
     this.drawBackground(game.time, alt);
     this.drawStars(game, alt);
+    this.drawMoon(alt);
+    this.drawFlyers(game);
     this.drawCity(game, oy);
+    this.drawBalloon(game, alt);
     this.drawClouds(game, alt);
+    this.drawRecord(game, oy);
     this.drawTower(game, ox, oy);
+    this.drawPigeons(game, ox, oy);
     this.drawCrane(game, shx, shy);
     this.drawFx(game, ox, oy);
+    this.drawWind(game, dt);
 
     if (game.state === 'title') this.drawTitle(game);
-    else this.drawHud(game);
+    else if (game.state !== 'over') this.drawHud(game);
+    if (game.state === 'pick') this.drawPick(game);
     if (game.state === 'over') this.drawGameOver(game);
-    g.drawImage(sound.muted ? speakerOff : speakerOn, 5, H - 14);
+    this.drawNonna(game);
+    if (game.paused) this.drawPause(game);
+    this.drawCornerButtons(game, sound);
+    g.globalAlpha = 1;
 
     this.present(game);
   }
+
+  // --- sky -------------------------------------------------------------------
 
   drawBackground(t, alt) {
     if (this.frame % 2 === 1 || !this.bgReady) {
@@ -222,6 +222,33 @@ export class Renderer {
     g.globalAlpha = 1;
   }
 
+  drawMoon(alt) {
+    const a = clamp((alt - 22) / 8, 0, 1);
+    if (!a) return;
+    const { g, W, H } = this;
+    g.globalAlpha = a;
+    g.drawImage(moon, Math.round(W * 0.74 - 9), Math.round(H * 0.16 + (alt - 40) * 0.6));
+    g.globalAlpha = 1;
+  }
+
+  drawFlyers(game) {
+    const { g, W, H } = this;
+    for (const f of game.flyers) {
+      const spr = f.type === 'ufo' ? ufo[Math.floor(f.t * 6) % 2] : satellite;
+      const wobble = f.type === 'ufo' ? Math.sin(f.t * 5) * 4 : 0;
+      g.drawImage(spr, Math.round(f.u * W - spr.width / 2), Math.round(f.v * H + wobble));
+    }
+  }
+
+  drawBalloon(game, alt) {
+    if (alt > 40) return;
+    const { g, W, H } = this;
+    const b = game.balloon;
+    const y = Math.round((b.y - game.cam.y) * 0.75 + Math.sin(game.time * 0.8) * 2);
+    if (y > H || y + balloon.height < 0) return;
+    g.drawImage(balloon, Math.round(W / 2 + b.x - game.cam.x * 0.75 - balloon.width / 2), y);
+  }
+
   drawCity(game, oy) {
     const { g, W, H } = this;
     const gy = oy; // ground's screen y
@@ -267,6 +294,27 @@ export class Renderer {
     g.globalAlpha = 1;
   }
 
+  // A dashed line and a pennant at the height of your best tower.
+  drawRecord(game, oy) {
+    if (game.state === 'title' || game.record < 3 || game.recordBroken) return;
+    const { g, W, H } = this;
+    const y = oy - (game.record + 1) * BH;
+    if (y < 8 || y > H) return;
+    g.globalAlpha = 0.8;
+    g.fillStyle = PAL.gold;
+    for (let x = (Math.floor(game.time * 12) % 6) - 6; x < W; x += 6) g.fillRect(x, y, 4, 1);
+    g.globalAlpha = 1;
+    const px = W - 12;
+    g.fillStyle = PAL.cream;
+    g.fillRect(px, y - 15, 1, 15);
+    const flap = Math.floor(game.time * 4) % 2;
+    g.fillStyle = PAL.red;
+    for (let j = 0; j < 5; j++) g.fillRect(px + 1, y - 15 + j, 6 - j - (j === 2 ? flap : 0), 1);
+    drawText(g, `RECORD ${game.record}`, px - 3, y - 10, { align: 'right', color: PAL.gold, outline: INK });
+  }
+
+  // --- tower, crane and friends ---------------------------------------------
+
   drawTower(game, ox, oy) {
     const { g, H } = this;
     const dip = Math.round(game.dip);
@@ -274,12 +322,36 @@ export class Renderer {
     const first = Math.max(0, Math.floor((oy - H) / BH) - 1);
     const last = Math.min(n - 1, Math.ceil(oy / BH));
     for (let i = first; i <= last; i++) {
+      const b = game.blocks[i];
       const x = Math.round(game.blockX(i) - BW / 2) + ox;
       const y = oy - (i + 1) * BH + (i > 0 ? dip : 0);
-      g.drawImage(game.blocks[i].sprite, x, y);
+      const s = Math.round(b.squash * 2);
+      if (s) g.drawImage(b.sprite, x - s, y + s, BW + 2 * s, BH - s);
+      else g.drawImage(b.sprite, x, y);
+      if (b.gold) this.twinkle(x, y, i, game.time);
     }
     const f = game.falling;
     if (f) g.drawImage(f.block.sprite, Math.round(f.x - BW / 2) + ox, Math.round(f.y) + oy);
+  }
+
+  twinkle(x, y, i, t) {
+    const beat = t * 3 + i * 0.37;
+    if (beat % 1 > 0.5) return;
+    const r = rng(Math.floor(beat) * 131 + i);
+    const px = x + 3 + Math.floor(r() * (BW - 6));
+    const py = y + 4 + Math.floor(r() * (BH - 8));
+    this.g.fillStyle = '#ffffff';
+    this.g.fillRect(px - 1, py, 3, 1);
+    this.g.fillRect(px, py - 1, 1, 3);
+  }
+
+  drawPigeons(game, ox, oy) {
+    for (const p of game.pigeons) {
+      const flying = p.state !== 'sit';
+      const frame = flying ? (Math.floor(p.t * 12) % 2 ? 'up' : 'down') : Math.sin(p.t * 3 + p.dx) > 0.8 ? 'peck' : 'sit';
+      const spr = pigeon(frame, p.face);
+      this.g.drawImage(spr, Math.round(p.x - spr.width / 2) + ox, Math.round(p.y - spr.height) + oy + 1);
+    }
   }
 
   drawCrane(game, shx, shy) {
@@ -320,9 +392,16 @@ export class Renderer {
       g.fillStyle = p.color;
       const x = Math.round(p.x) + ox;
       const y = Math.round(p.y) + oy;
-      if (p.spark) {
+      if (p.kind === 'spark') {
         g.fillRect(x - 1, y, 3, 1);
         g.fillRect(x, y - 1, 1, 3);
+      } else if (p.kind === 'coin') {
+        g.fillRect(x, y, 2, 2);
+        g.fillStyle = '#fff3c4';
+        g.fillRect(x, y, 1, 1);
+      } else if (p.kind === 'confetti') {
+        if (Math.floor(game.time * 8 + p.seed) % 2) g.fillRect(x, y, 2, 1);
+        else g.fillRect(x, y, 1, 2);
       } else {
         g.fillRect(x, y, p.size, p.size);
       }
@@ -343,18 +422,61 @@ export class Renderer {
     g.globalAlpha = 1;
   }
 
+  // Streaks and the odd leaf blowing across the screen during a gust.
+  drawWind(game, dt) {
+    const { g, W, H } = this;
+    const w = game.wind.value;
+    if (!game.paused && Math.abs(w) > 3 && Math.random() < (Math.abs(w) / CFG.windMax) * 1.2) {
+      this.streaks.push({
+        x: w > 0 ? -8 : W + 8,
+        y: Math.random() * H,
+        len: 3 + Math.floor(Math.random() * 6),
+        v: w * (3 + Math.random() * 2),
+        leaf: Math.random() < 0.1,
+        seed: Math.random() * 6,
+      });
+    }
+    for (const s of this.streaks) s.x += s.v * dt;
+    this.streaks = this.streaks.filter((s) => s.x > -20 && s.x < W + 20);
+    for (const s of this.streaks) {
+      if (s.leaf) {
+        g.fillStyle = s.seed > 3 ? PAL.orange : PAL.green;
+        g.fillRect(Math.round(s.x), Math.round(s.y + Math.sin(game.time * 8 + s.seed) * 3), 2, 1);
+      } else {
+        g.globalAlpha = 0.35;
+        g.fillStyle = PAL.cream;
+        g.fillRect(Math.round(s.x), Math.round(s.y), s.len, 1);
+        g.globalAlpha = 1;
+      }
+    }
+  }
+
+  // --- HUD and screens --------------------------------------------------------
+
+  drawCardIcon(card, x, y, scale = 1) {
+    const icon = cardIcon(card.id);
+    if (icon) this.g.drawImage(icon, x, y, icon.width * scale, icon.height * scale);
+    else drawText(this.g, card.glyph, x + 7 * scale, y + 4 * scale, { scale, color: PAL.gold, outline: INK, align: 'center' });
+  }
+
   drawHud(game) {
     const { g, W } = this;
     drawText(g, Math.floor(game.shownScore), 6, 6, { scale: 2, color: PAL.cream, outline: INK, shadow: INK });
     drawText(g, `FLOOR ${game.floors}`, 6, 24, { color: PAL.dim, outline: INK });
-    if (game.combo >= 2) {
-      drawText(g, `X${game.combo}`, 6, 34, {
-        scale: 2, color: PAL.orange, outline: INK, shadow: INK, wave: 1, waveSpeed: 10, time: game.time,
-      });
+
+    // Blessings held this run.
+    let bx = 5;
+    for (const card of CARDS) {
+      const n = game.owned[card.id];
+      if (!n) continue;
+      this.drawCardIcon(card, bx, 34);
+      if (n > 1) drawText(g, n, bx + 13, 41, { color: PAL.cream, outline: INK });
+      bx += n > 1 ? 21 : 15;
     }
 
-    for (let i = 0; i < CFG.lives; i++) {
-      g.drawImage(i < game.lives ? heartFull : heartEmpty, W - 6 - (CFG.lives - i) * 10, 5);
+    const slots = Math.max(CFG.lives, game.lives);
+    for (let i = 0; i < slots; i++) {
+      g.drawImage(i < game.lives ? heartFull : heartEmpty, W - 6 - (slots - i) * 10, 5);
     }
 
     // Sway meter: how close the swing of the tower top is to toppling it.
@@ -371,6 +493,71 @@ export class Renderer {
     if (d > 0.85 && Math.floor(game.time * 8) % 2) g.fillStyle = PAL.cream;
     else g.fillStyle = color;
     g.fillRect(mx, my, Math.round(d * mw), 5);
+
+    // Wind: flashes while a gust is announced, then shows its strength.
+    const wd = game.wind;
+    if (wd.warn > 0 || Math.abs(wd.value) > 2) {
+      const strength = wd.warn > 0 ? wd.power : Math.abs(wd.value);
+      const dir = wd.warn > 0 ? wd.dir : Math.sign(wd.value);
+      const arrows = (dir > 0 ? '>' : '<').repeat(Math.max(1, Math.ceil((strength / CFG.windMax) * 3)));
+      const text = dir > 0 ? `VENTO ${arrows}` : `${arrows} VENTO`;
+      if (!(wd.warn > 0 && Math.floor(game.time * 6) % 2)) {
+        drawText(g, text, W - 6, 28, { align: 'right', color: PAL.blue, outline: INK });
+      }
+    }
+
+    if (game.combo >= 2) {
+      drawText(g, `X${game.combo}`, W - 6, 40, {
+        scale: 2, align: 'right', color: PAL.orange, outline: INK, shadow: INK, wave: 1, waveSpeed: 10, time: game.time,
+      });
+    }
+  }
+
+  drawNonna(game) {
+    const { g, W } = this;
+    const n = game.nonna;
+    const x = 4;
+    const y = this.H - 27 - Math.round(Math.sin(n.bob * Math.PI) * 2);
+    g.fillStyle = INK;
+    g.fillRect(x + 1, y + 23, 20, 2);
+    box(g, x, y, 22, 22, MOOD_BG[n.mood] || MOOD_BG.neutral);
+    g.drawImage(nonnaFace(n.face), x + 3, y + 5);
+
+    if (n.textT <= 0) return;
+    const tw = textWidth(n.text);
+    const bw = Math.min(tw + 8, W - x - 34);
+    const bx = x + 28;
+    const by = y + 4;
+    box(g, bx, by, bw, 13, PAL.cream);
+    g.fillStyle = INK; // tail pointing at Nonna
+    g.fillRect(bx - 3, by + 7, 2, 1);
+    g.fillRect(bx - 2, by + 6, 1, 1);
+    g.fillRect(bx - 2, by + 8, 1, 1);
+    g.fillStyle = PAL.cream;
+    g.fillRect(bx - 1, by + 6, 1, 3);
+    g.fillRect(bx - 2, by + 7, 1, 1);
+    drawText(g, n.text, bx + 4, by + 3, { color: INK });
+  }
+
+  button(id, x, y, w, h, label, color) {
+    const { g } = this;
+    g.fillStyle = INK;
+    g.fillRect(x + 1, y + h + 1, w - 2, 2);
+    box(g, x, y, w, h, color);
+    g.fillStyle = 'rgba(255,255,255,0.25)';
+    g.fillRect(x + 1, y + 1, w - 2, 1);
+    drawText(g, label, x + w / 2, y + Math.round((h - 7) / 2), { color: PAL.cream, outline: INK, align: 'center' });
+    this.buttons.push({ id, x: x - 2, y: y - 2, w: w + 4, h: h + 4 });
+  }
+
+  drawCornerButtons(game, sound) {
+    const { g, W, H } = this;
+    g.drawImage(sound.muted ? speakerOff : speakerOn, W - 16, H - 14);
+    this.buttons.push({ id: 'mute', x: W - 24, y: H - 26, w: 24, h: 26 });
+    if ((game.state === 'play' || game.state === 'pick') && !game.paused) {
+      g.drawImage(pauseIcon, W - 31, H - 14);
+      this.buttons.push({ id: 'pause', x: W - 46, y: H - 26, w: 22, h: 26 });
+    }
   }
 
   drawTitle(game) {
@@ -382,57 +569,137 @@ export class Renderer {
     });
     drawText(g, 'LA TORRETTA CHE DONDOLA', W / 2, y0 + 46, { color: PAL.cream, outline: INK, align: 'center' });
 
-    const pw = 152;
+    const pw = 156;
     const px = Math.round(W / 2 - pw / 2);
-    panel(g, px, y0 + 66, pw, 52);
+    panel(g, px, y0 + 64, pw, 52);
     const lines = [
       ['TAP OR SPACE TO DROP', PAL.cream],
-      ['STACK THE TOWER HIGH', PAL.cream],
-      ['PERFECT DROPS SCORE', PAL.gold],
-      ['BIG AND CALM THE SWAY', PAL.gold],
+      ['STACK THE PALAZZO HIGH', PAL.cream],
+      ['PERFECT DROPS CALM SWAY', PAL.gold],
+      ['EVERY 10 FLOORS: A GIFT', PAL.purple],
     ];
-    lines.forEach(([text, color], i) => drawText(g, text, W / 2, y0 + 72 + i * 11, { color, align: 'center' }));
+    lines.forEach(([text, color], i) => drawText(g, text, W / 2, y0 + 70 + i * 11, { color, align: 'center' }));
 
     if (Math.floor(t * 2.5) % 2 === 0) {
-      drawText(g, 'TAP TO START', W / 2, y0 + 130, { color: PAL.cream, outline: INK, shadow: INK, align: 'center' });
+      drawText(g, 'TAP TO START', W / 2, y0 + 128, { color: PAL.cream, outline: INK, shadow: INK, align: 'center' });
     }
     const best = game.save.best || 0;
-    if (best) drawText(g, `BEST ${best}`, W / 2, y0 + 146, { color: PAL.dim, outline: INK, align: 'center' });
+    if (best) {
+      drawText(g, `BEST ${best}  -  ${game.save.bestFloors || 0} FLOORS`, W / 2, y0 + 144, {
+        color: PAL.dim, outline: INK, align: 'center',
+      });
+    }
+  }
+
+  drawPick(game) {
+    const { g, W, H } = this;
+    const p = game.pick;
+    g.fillStyle = DIM;
+    g.fillRect(0, 0, W, H);
+    const cw = 56;
+    const ch = 74;
+    const gap = 4;
+    const n = p.cards.length;
+    const x0 = Math.round(W / 2 - (n * cw + (n - 1) * gap) / 2);
+    const cy = Math.round(clamp(H * 0.3, 70, 150));
+
+    drawText(g, 'BENEDIZIONE!', W / 2, cy - 42, {
+      scale: 2, color: PAL.gold, outline: INK, shadow: INK, align: 'center', wave: 1, waveSpeed: 5, time: game.time,
+    });
+    drawText(g, 'NONNA HAS A GIFT: PICK ONE', W / 2, cy - 20, { color: PAL.cream, outline: INK, align: 'center' });
+
+    p.cards.forEach((card, i) => {
+      const k = clamp((p.t - i * 0.08) / 0.35, 0, 1);
+      const focus = p.focus === i;
+      const x = x0 + i * (cw + gap);
+      const y = Math.round(cy + (1 - easeOutBack(k)) * (H - cy + 10) - (focus ? 6 : 0) + Math.sin(game.time * 2 + i * 2));
+      this.drawCard(card, x, y, cw, ch, focus, game);
+      this.buttons.push({ id: `card${i}`, x, y: cy - 10, w: cw, h: ch + 16 });
+    });
+
+    const py = cy + ch + 12;
+    panel(g, Math.round(W / 2 - 82), py, 164, 40);
+    if (p.focus >= 0) {
+      const card = p.cards[p.focus];
+      card.text.forEach((text, i) => drawText(g, text, W / 2, py + 6 + i * 10, { color: PAL.cream, align: 'center' }));
+      if (Math.floor(game.time * 3) % 2 === 0) {
+        drawText(g, 'TAP AGAIN TO TAKE IT', W / 2, py + 28, { color: PAL.gold, align: 'center' });
+      }
+    } else {
+      drawText(g, 'TAP A CARD TO READ IT', W / 2, py + 16, { color: PAL.dim, align: 'center' });
+    }
+  }
+
+  // A Balatro-style card: rarity-colored face, icon window, name, rarity gems.
+  drawCard(card, x, y, w, h, focus, game) {
+    const { g } = this;
+    const rar = RARITY[card.rarity];
+    g.fillStyle = INK;
+    g.fillRect(x + 2, y + h + 1, w - 2, 2);
+    box(g, x, y, w, h, focus ? PAL.gold : PAL.cream);
+    g.fillStyle = rar.color;
+    g.fillRect(x + 2, y + 2, w - 4, h - 4);
+    box(g, x + 6, y + 6, w - 12, 36, rar.light);
+    g.fillStyle = 'rgba(26,16,40,0.25)';
+    g.fillRect(x + 6, y + 30, w - 12, 12);
+    this.drawCardIcon(card, Math.round(x + w / 2 - 14), y + 10, 2);
+    drawText(g, card.name, x + w / 2, y + 48, { color: PAL.cream, outline: INK, align: 'center' });
+    const gems = card.rarity + 1;
+    for (let k = 0; k < gems; k++) {
+      const gx = Math.round(x + w / 2 - (gems * 6 - 2) / 2 + k * 6);
+      g.fillStyle = INK;
+      g.fillRect(gx - 1, y + 61, 6, 6);
+      g.fillStyle = rar.light;
+      g.fillRect(gx, y + 62, 4, 4);
+      g.fillStyle = PAL.cream;
+      g.fillRect(gx, y + 62, 1, 1);
+    }
+    const owned = game.owned[card.id];
+    if (owned) drawText(g, `X${owned}`, x + w - 4, y + 4, { color: PAL.cream, outline: INK, align: 'right' });
+    if (focus && Math.floor(game.time * 4) % 2) {
+      g.fillStyle = PAL.cream;
+      for (const [sx, sy] of [[x - 3, y + 8], [x + w + 2, y + h - 10]]) {
+        g.fillRect(sx - 1, sy, 3, 1);
+        g.fillRect(sx, sy - 1, 1, 3);
+      }
+    }
   }
 
   drawGameOver(game) {
     const { g, W, H } = this;
-    const t = game.time;
-    const pw = 140;
-    const ph = 108;
-    const px = Math.round(W / 2 - pw / 2);
-    const py = Math.round(clamp(H * 0.24, 44, 120));
-    panel(g, px, py, pw, ph);
+    const card = this.postcard;
+    const groupH = 20 + POSTCARD_H + 10 + 18;
+    const top = Math.round(clamp((H - groupH) * 0.4, 4, H));
+    const e = easeOutBack(clamp(game.overT / 0.55, 0, 1));
+    const px = Math.round(W / 2 - POSTCARD_W / 2);
+    const py = Math.round(top + 20 + (1 - e) * (H - top));
 
-    const toppled = game.reason === 'topple';
-    drawText(g, toppled ? 'CROLLO!' : 'GAME OVER', W / 2, py + 8, {
-      scale: 2, color: PAL.red, outline: INK, shadow: INK, align: 'center', wave: 1, waveSpeed: 6, time: t,
+    g.globalAlpha = clamp(game.overT * 3, 0, 1);
+    drawText(g, game.reason === 'topple' ? 'CROLLO!' : 'GAME OVER', W / 2, top, {
+      scale: 2, color: PAL.red, outline: INK, shadow: INK, align: 'center', wave: 1, waveSpeed: 6, time: game.time,
     });
-    drawText(g, toppled ? 'THE TOWER FELL' : 'OUT OF LIVES', W / 2, py + 28, { color: PAL.dim, align: 'center' });
-
-    const rows = [
-      ['SCORE', game.score, PAL.cream],
-      ['FLOORS', game.reached, PAL.cream],
-      ['BEST COMBO', game.bestCombo, PAL.orange],
-      ['BEST', game.save.best || 0, PAL.gold],
-    ];
-    rows.forEach(([label, value, color], i) => {
-      const y = py + 44 + i * 11;
-      drawText(g, label, px + 10, y, { color: PAL.dim });
-      drawText(g, value, px + pw - 10, y, { color, align: 'right' });
-    });
-
-    const blink = Math.floor(t * 3) % 2 === 0;
-    if (game.newBest && blink) {
-      drawText(g, 'NEW BEST!', W / 2, py - 14, { color: PAL.gold, outline: INK, shadow: INK, align: 'center', scale: 1 });
+    g.globalAlpha = 1;
+    if (card) {
+      g.fillStyle = INK;
+      g.fillRect(px + 3, py + POSTCARD_H, POSTCARD_W - 4, 3);
+      g.drawImage(card, px, py);
     }
-    if (game.overT > 0.8 && Math.floor(t * 2.5) % 2 === 0) {
-      drawText(g, 'TAP TO RETRY', W / 2, py + ph - 14, { color: PAL.cream, outline: INK, align: 'center' });
+    if (game.overT > 0.8) {
+      const by = py + POSTCARD_H + 10;
+      this.button('retry', Math.round(W / 2 - 79), by, 76, 16, 'RIPROVA', '#2f7d5b');
+      this.button('share', Math.round(W / 2 + 3), by, 76, 16, this.shareLabel, '#2a5f9e');
+    }
+  }
+
+  drawPause(game) {
+    const { g, W, H } = this;
+    g.fillStyle = DIM;
+    g.fillRect(0, 0, W, H);
+    drawText(g, 'PAUSA', W / 2, Math.round(H * 0.38), {
+      scale: 2, color: PAL.cream, outline: INK, shadow: INK, align: 'center', wave: 1, waveSpeed: 4, time: game.time,
+    });
+    if (Math.floor(game.time * 2.5) % 2 === 0) {
+      drawText(g, 'TAP TO RESUME', W / 2, Math.round(H * 0.38) + 24, { color: PAL.dim, outline: INK, align: 'center' });
     }
   }
 
@@ -443,7 +710,7 @@ export class Renderer {
     ctx.drawImage(this.low, 0, 0, cw, ch);
     ctx.drawImage(this.crt, 0, 0);
 
-    if (game.state === 'play' && game.danger > 0.65) {
+    if (game.state === 'play' && !game.paused && game.danger > 0.65) {
       const pulse = 0.5 + 0.5 * Math.sin(game.time * 10);
       const a = clamp((game.danger - 0.65) / 0.35, 0, 1) * (0.2 + 0.25 * pulse);
       const rg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.3, cw / 2, ch / 2, Math.hypot(cw, ch) * 0.55);
