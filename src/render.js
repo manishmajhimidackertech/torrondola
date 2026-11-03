@@ -8,7 +8,7 @@ import {
 import { balloon, cardIcon, moon, nonnaFace, pigeon, satellite, ufo } from './art.js';
 import { CARDS, RARITY } from './cards.js';
 import { BAYER, box, clamp, line, panel } from './draw.js';
-import { POSTCARD_H, POSTCARD_W } from './postcard.js';
+import { CARD_W, PHOTO_MAX, PHOTO_MIN, cardHeight } from './postcard.js';
 
 // Swirl palettes from dark to light, blended as the tower climbs: dusk, night, space.
 const THEMES = [
@@ -29,6 +29,9 @@ const MOOD_BG = {
   neutral: '#3d2e5c', happy: '#2f7d5b', ecstatic: '#b07a22', worried: '#5c3d6e', shocked: '#9e2f3a',
 };
 
+// Results screen: headline + gap, card, gap, two rows of buttons.
+const RESULT_CHROME = 26 + 8 + 18 + 6 + 18;
+
 const easeOutBack = (k) => 1 + 2.2 * (k - 1) ** 3 + 1.2 * (k - 1) ** 2;
 
 export class Renderer {
@@ -43,7 +46,7 @@ export class Renderer {
     this.streaks = [];
     this.lastTime = 0;
     this.postcard = null; // canvas from postcard.js, set by main.js at game over
-    this.shareLabel = 'SALVA';
+    this.shareLabel = 'SAVE IMAGE';
 
     this.farCity = makeSkyline(CITY_W, 130, 7, FAR_CITY, '#4a2f6a', 0.1, 34, 120);
     this.nearCity = makeSkyline(CITY_W, 80, 21, NEAR_CITY, '#ffd56b', 0.1, 14, 72);
@@ -500,7 +503,7 @@ export class Renderer {
       const strength = wd.warn > 0 ? wd.power : Math.abs(wd.value);
       const dir = wd.warn > 0 ? wd.dir : Math.sign(wd.value);
       const arrows = (dir > 0 ? '>' : '<').repeat(Math.max(1, Math.ceil((strength / CFG.windMax) * 3)));
-      const text = dir > 0 ? `VENTO ${arrows}` : `${arrows} VENTO`;
+      const text = dir > 0 ? `WIND ${arrows}` : `${arrows} WIND`;
       if (!(wd.warn > 0 && Math.floor(game.time * 6) % 2)) {
         drawText(g, text, W - 6, 28, { align: 'right', color: PAL.blue, outline: INK });
       }
@@ -665,29 +668,46 @@ export class Renderer {
     }
   }
 
+  // Keep the bottom-left corner clear for Nonna on narrow screens.
+  resultReserve() {
+    return this.W < 300 ? 32 : 6;
+  }
+
+  // Size of the results card for this screen: the photo grows to fill the room.
+  resultCardSize() {
+    const free = this.H - this.resultReserve() - 8 - RESULT_CHROME;
+    return {
+      width: Math.min(CARD_W, this.W - 12),
+      photoH: clamp(free - cardHeight(0), PHOTO_MIN, PHOTO_MAX),
+    };
+  }
+
   drawGameOver(game) {
     const { g, W, H } = this;
     const card = this.postcard;
-    const groupH = 20 + POSTCARD_H + 10 + 18;
-    const top = Math.round(clamp((H - groupH) * 0.4, 4, H));
+    if (!card) return;
+    const cw = card.width;
+    const ch = card.height;
+    const top = Math.round(clamp((H - this.resultReserve() - RESULT_CHROME - ch) * 0.45, 4, H));
     const e = easeOutBack(clamp(game.overT / 0.55, 0, 1));
-    const px = Math.round(W / 2 - POSTCARD_W / 2);
-    const py = Math.round(top + 20 + (1 - e) * (H - top));
+    const px = Math.round(W / 2 - cw / 2);
+    const py = Math.round(top + 26 + (1 - e) * (H - top));
 
     g.globalAlpha = clamp(game.overT * 3, 0, 1);
-    drawText(g, game.reason === 'topple' ? 'CROLLO!' : 'GAME OVER', W / 2, top, {
+    drawText(g, game.reason === 'topple' ? 'TOWER FELL!' : 'GAME OVER', W / 2, top, {
       scale: 2, color: PAL.red, outline: INK, shadow: INK, align: 'center', wave: 1, waveSpeed: 6, time: game.time,
     });
     g.globalAlpha = 1;
-    if (card) {
-      g.fillStyle = INK;
-      g.fillRect(px + 3, py + POSTCARD_H, POSTCARD_W - 4, 3);
-      g.drawImage(card, px, py);
-    }
+    g.fillStyle = INK;
+    g.fillRect(px + 3, py + ch, cw - 4, 3);
+    g.drawImage(card, px, py);
+
     if (game.overT > 0.8) {
-      const by = py + POSTCARD_H + 10;
-      this.button('retry', Math.round(W / 2 - 79), by, 76, 16, 'RIPROVA', '#2f7d5b');
-      this.button('share', Math.round(W / 2 + 3), by, 76, 16, this.shareLabel, '#2a5f9e');
+      const by = py + ch + 8;
+      const half = Math.floor((cw - 6) / 2);
+      this.button('retry', px, by, cw, 18, 'PLAY AGAIN', '#2f7d5b');
+      this.button('menu', px, by + 24, half, 18, 'MENU', '#5c3d6e');
+      this.button('share', px + cw - half, by + 24, half, 18, this.shareLabel, '#2a5f9e');
     }
   }
 
@@ -695,12 +715,15 @@ export class Renderer {
     const { g, W, H } = this;
     g.fillStyle = DIM;
     g.fillRect(0, 0, W, H);
-    drawText(g, 'PAUSA', W / 2, Math.round(H * 0.38), {
+    const y = Math.round(H * 0.3);
+    drawText(g, 'PAUSED', W / 2, y, {
       scale: 2, color: PAL.cream, outline: INK, shadow: INK, align: 'center', wave: 1, waveSpeed: 4, time: game.time,
     });
-    if (Math.floor(game.time * 2.5) % 2 === 0) {
-      drawText(g, 'TAP TO RESUME', W / 2, Math.round(H * 0.38) + 24, { color: PAL.dim, outline: INK, align: 'center' });
-    }
+    const bw = 124;
+    const bx = Math.round(W / 2 - bw / 2);
+    this.button('resume', bx, y + 32, bw, 18, 'RESUME', '#2f7d5b');
+    this.button('restart', bx, y + 58, bw, 18, 'RESTART', '#b0612a');
+    this.button('quit', bx, y + 84, bw, 18, 'MAIN MENU', '#9e2f3a');
   }
 
   present(game) {

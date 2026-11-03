@@ -14,7 +14,8 @@ The name blends *torre* (tower) and *dondola* (it swings); *-ola* is also an Ita
 |---|---|
 | **Tap**, **Space**, **Enter** or **↓** | Drop the block |
 | **← / →** or **1 / 2 / 3**, then **Space** | Choose a blessing card |
-| **P** / **Esc**, or the pause icon | Pause |
+| **P** / **Esc**, or the pause icon | Pause menu: Resume, Restart (**R**), Main menu (**Q**) |
+| **Esc** on the results screen | Back to the main menu |
 | **M**, or the speaker icon | Mute |
 
 | Landing | Offset from the block below | Effect |
@@ -45,10 +46,10 @@ You start with 3 lives. The game ends when you run out of lives or when the towe
 
 - **Golden floors.** About one floor in fourteen arrives gilded. Landing one is worth ×3 points.
 - **Your record.** A pennant marks the height of your best tower. Climb past it for *Nuovo record!* and confetti.
-- **Wind (*vento*).** From floor 25, gusts are announced in the HUD, then push falling blocks and the tower sideways.
+- **Wind.** From floor 25, gusts are announced in the HUD, then push falling blocks and the tower sideways.
 - **The sky.** It changes from dusk to night to space. On the way up you pass clouds, a tricolore hot-air balloon, the moon and satellites, and up high, the occasional UFO. Pigeons land on the roof and flee from the next floor.
 - **The palazzo.** Floors come with shutters (*persiane*), flower boxes, balconies with geraniums, arched windows and laundry lines. The building changes colour every 10 floors.
-- **The postcard.** When the run ends you get a postcard, *Saluti da Torrondola*, with a picture of your tower and your stats. Share it (phones) or save it as a PNG (desktop).
+- **The results card.** When the run ends you get an airmail-style card with a picture of your tower, your score, floors, best combo and blessings, signed by Nonna. **Share** it (phones) or **Save image** (desktop), **Play again**, or go back to the **Menu**.
 
 ### A little Italian
 
@@ -62,9 +63,7 @@ You start with 3 lives. The game ends when you run out of lives or when the towe
 | *Che vento!* | What a wind! |
 | *Via, piccione!* | Shoo, pigeon! |
 | *Crollo!* | Collapse! |
-| *Saluti da... / Baci, Nonna* | Greetings from... / Kisses, Grandma |
-| *Piani / Punti* | Floors / Points |
-| *Riprova / Condividi / Salva* | Retry / Share / Save |
+| *Riprova! / Coraggio!* | Try again! / Chin up! |
 
 ## Running it
 
@@ -94,7 +93,7 @@ src/game.js             rules and simulation, no drawing
 src/cards.js            blessing cards and what they change
 src/nonna.js            Nonna's moods and lines
 src/render.js           low-res canvas renderer: sky, tower, HUD, menus, CRT pass
-src/postcard.js         the end-of-run postcard and sharing it
+src/postcard.js         the end-of-run results card and sharing it
 src/sprites.js          procedural pixel art: floors, city, clouds, UI icons
 src/art.js              characters and props: Nonna, pigeons, balloon, moon, card icons
 src/draw.js             small shared pixel-drawing helpers

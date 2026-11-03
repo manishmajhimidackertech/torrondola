@@ -168,6 +168,31 @@ export class Game {
     if (!this.paused && (this.state === 'play' || this.state === 'pick')) this.togglePause();
   }
 
+  // Starts over from the pause menu; anything already beaten still counts as a best.
+  restart() {
+    this.keepBest();
+    this.paused = false;
+    this.start();
+  }
+
+  // Leaves the run for the title screen (pause menu or results screen).
+  quit() {
+    if (this.state !== 'over') this.keepBest();
+    this.paused = false;
+    this.state = 'title';
+    this.reset();
+    this.titleTalk = 0.8;
+    this.sound.music(false);
+    this.sound.setMuffled(false);
+    this.sound.click();
+  }
+
+  keepBest() {
+    if (this.score > (this.save.best || 0)) this.save.best = this.score;
+    this.save.bestFloors = Math.max(this.save.bestFloors || 0, this.reached);
+    writeSave(this.save);
+  }
+
   // Tapping a card focuses it; tapping the focused card takes it.
   tapCard(i) {
     const p = this.pick;
@@ -588,13 +613,13 @@ export class Game {
   finish() {
     this.state = 'over';
     this.overT = 0;
+    this.hang = null; // the crane pulls its rope up out of the way
     this.newBest = this.score > (this.save.best || 0);
-    if (this.newBest) this.save.best = this.score;
-    this.save.bestFloors = Math.max(this.save.bestFloors || 0, this.reached);
-    writeSave(this.save);
+    this.keepBest();
     this.summary = {
       floors: this.reached,
       score: this.score,
+      best: this.save.best,
       bestCombo: this.bestCombo,
       newBest: this.newBest,
       newRecord: this.recordBroken,

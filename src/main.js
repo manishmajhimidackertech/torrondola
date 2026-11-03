@@ -39,14 +39,14 @@ function toggleMute() {
 let postcard = null; // { file, text } once the PNG is ready
 
 game.onFinish = (summary) => {
-  const card = renderPostcard(summary);
+  const card = renderPostcard(summary, renderer.resultCardSize());
   renderer.postcard = card;
-  renderer.shareLabel = 'SALVA';
+  renderer.shareLabel = 'SAVE IMAGE';
   postcard = null;
   const text = `I built a ${summary.floors}-floor palazzo in Torrondola!`;
   postcardFile(card).then((file) => {
     postcard = { file, text };
-    if (canShareFiles(file)) renderer.shareLabel = 'CONDIVIDI';
+    if (canShareFiles(file)) renderer.shareLabel = 'SHARE';
   });
 };
 
@@ -66,9 +66,11 @@ canvas.addEventListener('pointerdown', (e) => {
   pressedId = id;
   if (id === 'share') return; // handled on pointerup, which counts as a user gesture for the share sheet
   if (id === 'mute') toggleMute();
-  else if (id === 'pause') game.togglePause();
+  else if (id === 'pause' || id === 'resume') game.togglePause();
+  else if (id === 'restart') game.restart();
+  else if (id === 'quit' || id === 'menu') game.quit();
   else if (id?.startsWith('card')) game.tapCard(Number(id.slice(4)));
-  else game.press();
+  else if (!game.paused) game.press(); // while paused only the menu buttons respond
 });
 
 canvas.addEventListener('pointerup', (e) => {
@@ -83,6 +85,9 @@ window.addEventListener('keydown', (e) => {
   if (e.repeat) return;
   sound.unlock();
   if (e.code === 'KeyM') toggleMute();
+  else if (e.code === 'Escape' && game.state === 'over') game.quit();
+  else if (e.code === 'KeyQ' && game.paused) game.quit();
+  else if (e.code === 'KeyR' && game.paused) game.restart();
   else if (e.code === 'KeyP' || e.code === 'Escape') game.togglePause();
   else if (e.code === 'ArrowLeft' || e.code === 'KeyA') game.moveFocus(-1);
   else if (e.code === 'ArrowRight' || e.code === 'KeyD') game.moveFocus(1);
