@@ -3,7 +3,7 @@
 import { BW, BH, CFG, GAME_H } from './config.js';
 import { drawText, textWidth } from './font.js';
 import {
-  INK, PAL, hookSprite, heartFull, heartEmpty, speakerOn, speakerOff, pauseIcon, makeSkyline, makeCloud, rng,
+  INK, PAL, hookSprite, heartFull, heartEmpty, speakerOn, speakerOff, pauseIcon, makeSkyline, makeCloud, rng, shaded,
 } from './sprites.js';
 import { balloon, cardIcon, dozer, moon, nonnaFace, pigeon, satellite, ufo } from './art.js';
 import { CARDS, RARITY } from './cards.js';
@@ -324,15 +324,20 @@ export class Renderer {
   drawStreet(game, ox, oy) {
     const { g, W } = this;
     if (oy > this.H + BW) return;
-    for (const r of game.rubble) {
+    // Older pieces are drawn first; one with a newer piece over it is shaded
+    // so the pile reads as front and back. Pushed pieces jitter as they scrape.
+    const rubble = game.rubble;
+    rubble.forEach((r, i) => {
       const x = Math.round(r.x) + ox;
-      if (x < -BW || x > W + BW) continue;
+      if (x < -BW || x > W + BW) return;
+      const behind = rubble.some((q, j) => j > i && Math.abs(q.x - r.x) < q.w + r.w);
+      const jitter = r.scrape ? Math.sin(game.time * 40 + r.x) * 0.035 * r.scrape : 0;
       g.save();
       g.translate(x, Math.round(r.y) + oy);
-      g.rotate(r.rot);
-      g.drawImage(r.sprite, -BW / 2, -BH / 2);
+      g.rotate(r.rot + jitter);
+      g.drawImage(behind ? shaded(r.sprite) : r.sprite, -BW / 2, -BH / 2);
       g.restore();
-    }
+    });
     const d = game.dozer;
     if (!d) return;
     const spr = dozer(Math.floor(d.t * 10), d.dir);

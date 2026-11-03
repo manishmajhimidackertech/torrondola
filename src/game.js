@@ -662,12 +662,12 @@ export class Game {
     const onSide = Math.abs(k) % 2 === 1;
     const w = onSide ? BH / 2 : BW / 2;
     const h = onSide ? BW / 2 : BH / 2;
-    const baseX = this.blocks[0].ox;
-    const clear = BW / 2 + w + 1;
-    let x = d.x;
-    if (Math.abs(x - baseX) < clear) x = baseX + (Math.sign(x - baseX) || 1) * clear;
+    const x = this.restingX(d.x, w);
     if (Math.abs(x - this.cam.x) > this.viewW / 2 + 60) return; // landed out of sight
-    this.rubble.push({ x, y: -h, w, h, rot: d.rot, target: (k * Math.PI) / 2, sprite: d.sprite });
+    // It lands where it fell, then skids to where it can rest.
+    this.rubble.push({
+      x: d.x, slide: x, y: -h, w, h, rot: d.rot, target: (k * Math.PI) / 2, sprite: d.sprite, scrape: 0,
+    });
     if (this.rubble.length > 14) this.rubble.shift();
     this.crewIn = Math.max(this.crewIn, 1.4);
     if (this.groundVisible()) {
@@ -677,27 +677,60 @@ export class Game {
     }
   }
 
+  // Where a piece landing at x can rest: clear of the ground floor, and never
+  // covering an older piece so much that less than REVEAL px of it shows.
+  restingX(x, w) {
+    const REVEAL = 12;
+    const baseX = this.blocks[0].ox;
+    const clear = BW / 2 + w + 1;
+    const blocked = (nx) => Math.abs(nx - baseX) < clear;
+    if (blocked(x)) x = baseX + (Math.sign(x - baseX) || 1) * clear;
+    for (let pass = 0; pass < 3; pass++) {
+      let moved = false;
+      for (const r of this.rubble) {
+        const rx = r.slide ?? r.x;
+        const pl = x - w;
+        const pr = x + w;
+        if (pr <= rx - r.w || pl >= rx + r.w) continue;
+        if (Math.max(0, pl - (rx - r.w)) + Math.max(0, rx + r.w - pr) >= REVEAL) continue;
+        const right = rx - r.w + REVEAL - pl; // slide right until REVEAL px show on its left
+        const left = pr - (rx + r.w - REVEAL); // or left until they show on its right
+        const options = right <= left ? [x + right, x - left] : [x - left, x + right];
+        const nx = options.find((o) => !blocked(o));
+        if (nx === undefined) continue;
+        x = nx;
+        moved = true;
+      }
+      if (!moved) break;
+    }
+    return x;
+  }
+
   // Once things settle and the street is on screen, the dozer drives across
   // and shoves every piece of rubble off the far edge.
   updateCrew(dt) {
-    for (const r of this.rubble) r.rot += (r.target - r.rot) * Math.min(1, dt * 18);
+    for (const r of this.rubble) {
+      r.rot += (r.target - r.rot) * Math.min(1, dt * 18);
+      r.scrape = Math.max(0, r.scrape - dt * 4);
+      if (r.slide != null) {
+        r.x += (r.slide - r.x) * Math.min(1, dt * 9);
+        if (Math.abs(r.slide - r.x) < 0.3) {
+          r.x = r.slide;
+          r.slide = null;
+        }
+      }
+    }
     const d = this.dozer;
     if (!d) {
       if (this.rubble.length && (this.crewIn -= dt) <= 0 && this.groundVisible()) this.callDozer();
       return;
     }
     d.t += dt;
-    d.x += d.dir * CFG.dozerSpeed * dt;
+    // a heavier load slows the dozer down a little
+    d.x += d.dir * CFG.dozerSpeed * Math.max(0.55, 1 - 0.12 * d.load) * dt;
+    const front = this.push(d);
 
-    // Push the rubble ahead of the blade; each piece pushes the one in front of it.
-    const ahead = this.rubble.filter((r) => d.dir * (r.x + d.dir * r.w - d.x) > 0).sort((a, b) => d.dir * (a.x - b.x));
-    let front = d.x + d.dir * DOZER_REACH;
-    for (const r of ahead) {
-      if (d.dir * (front - (r.x - d.dir * r.w)) <= 0) break;
-      r.x = front + d.dir * r.w;
-      front = r.x + d.dir * r.w;
-    }
-    if (ahead.length && d.dir * (front - (d.x + d.dir * DOZER_REACH)) > 0 && Math.random() < dt * 12) {
+    if (d.load && Math.random() < dt * 12) {
       this.particle({
         x: front - d.dir * 4,
         y: -2,
@@ -721,6 +754,39 @@ export class Game {
     }
   }
 
+  // Moves the rubble ahead of the blade. Pieces that already touch or overlap
+  // travel together and keep their spacing; a gap only closes as fast as the
+  // piece behind it moves, so nothing jumps into line. Returns the front of the load.
+  push(d) {
+    const dir = d.dir;
+    // positions measured along the direction of travel
+    const back = (r) => dir * r.x - r.w;
+    const front = (r) => dir * r.x + r.w;
+    const blade = dir * d.x + DOZER_REACH;
+    const ahead = this.rubble.filter((r) => front(r) > dir * d.x).sort((a, b) => back(a) - back(b));
+    const moved = [];
+    let lead = blade;
+    d.load = 0;
+    for (const r of ahead) {
+      const oldBack = back(r);
+      const oldFront = front(r);
+      let shift = Math.max(0, blade - oldBack);
+      for (const [qFront, qShift] of moved) {
+        if (qFront >= oldBack - 0.5) shift = Math.max(shift, qShift); // touching: carried along
+        else shift = Math.max(shift, qFront + qShift - oldBack); // gap closing: pushed once they meet
+      }
+      if (shift > 0) {
+        r.x += dir * shift;
+        r.slide = null;
+        r.scrape = 1;
+        d.load++;
+        lead = Math.max(lead, front(r));
+      }
+      moved.push([oldFront, shift]);
+    }
+    return dir * lead;
+  }
+
   // The dozer comes in from the side with less rubble and pushes toward the side with more.
   callDozer() {
     const lean = this.rubble.reduce((s, r) => s + Math.sign(r.x - this.cam.x), 0);
@@ -729,7 +795,7 @@ export class Game {
     const rear = dir > 0 ? Math.min(...this.rubble.map((r) => r.x - r.w)) : Math.max(...this.rubble.map((r) => r.x + r.w));
     const offscreen = this.cam.x - dir * (this.viewW / 2 + 30);
     const x = dir > 0 ? Math.min(offscreen, rear - DOZER_REACH - 2) : Math.max(offscreen, rear + DOZER_REACH + 2);
-    this.dozer = { x, dir, t: 0, puff: 0 };
+    this.dozer = { x, dir, t: 0, puff: 0, load: 0 };
     this.nonna.say('dozer', { chance: 0.6 });
   }
 

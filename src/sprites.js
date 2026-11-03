@@ -97,6 +97,23 @@ export function withOutline(src, color = INK) {
   return c;
 }
 
+const shadeCache = new WeakMap();
+
+// A darker copy of a sprite, for things sitting further back.
+export function shaded(src) {
+  let c = shadeCache.get(src);
+  if (!c) {
+    let g;
+    [c, g] = makeCanvas(src.width, src.height);
+    g.drawImage(src, 0, 0);
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = 'rgba(26,16,40,0.38)';
+    g.fillRect(0, 0, src.width, src.height);
+    shadeCache.set(src, c);
+  }
+  return c;
+}
+
 export function mirrored(src) {
   const [c, g] = makeCanvas(src.width, src.height);
   g.scale(-1, 1);
